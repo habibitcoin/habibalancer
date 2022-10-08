@@ -19,6 +19,7 @@ import (
 	"github.com/chromedp/cdproto/browser"
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
+	"github.com/chromedp/chromedp/kb"
 	"github.com/joho/godotenv"
 )
 
@@ -72,13 +73,23 @@ func GetAddress(amount string) (invoice string) {
 	ctx, cancel = context.WithTimeout(ctx, 300*time.Second)
 	defer cancel()
 
-	// navigate to a page, wait for an element, click
+	// Launch browser and visit
+	var location string
 	err := chromedp.Run(ctx,
 		browser.SetPermission(&browser.PermissionDescriptor{Name: "clipboard-read"}, browser.PermissionSettingGranted).WithOrigin("https://www.kraken.com"),
+		chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`), // may redirect us to login page
+		chromedp.Sleep(3*time.Second),
+		chromedp.Location(&location),
+	)
+	if err != nil {
+		log.Println(err)
+		return ""
+	}
 
-		// YOU NEED TO UNCOMMENT THE LOGIN LOGIC THE FIRST TIME YOU RUN THIS AND CONFIRM DEVICE VIA EMAIL
-		/*
-			chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`), // will redirect us to login page
+	if location != "https://www.kraken.com/u/funding/deposit?asset=BTC&method=1" {
+		log.Println(location)
+		// login is required
+		err = chromedp.Run(ctx,
 			// wait for footer element is visible (ie, page is loaded)
 			chromedp.WaitVisible(`//input[@name="username"]`),
 			chromedp.SendKeys(`//input[@name="username"]`, GoDotEnvVariable("KRAKEN_USERNAME")),
@@ -91,10 +102,26 @@ func GetAddress(amount string) (invoice string) {
 			chromedp.SendKeys(`//input[@name="tfa"]`, getHOTPToken(GoDotEnvVariable("KRAKEN_OTP_SECRET"))),
 			chromedp.Sleep(1*time.Second),
 			chromedp.SendKeys(`//input[@name="tfa"]`, kb.Enter),
-			chromedp.Sleep(30*time.Second),
+			chromedp.Sleep(3*time.Second),
+			chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`),
+			chromedp.Sleep(3*time.Second),
+			chromedp.Location(&location),
 			// GO CONFIRM YOUR DEVICE VIA EMAIL, COMMENT THIS OUT AGAIN AND RESTART SCRIPT
-		*/
-		chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`),
+		)
+		if err != nil {
+			log.Println(err)
+			return ""
+		}
+
+	}
+
+	if location != "https://www.kraken.com/u/funding/deposit?asset=BTC&method=1" {
+		log.Println("You may need to confirm your email and restart!")
+		os.Exit(1)
+	}
+
+	// navigate to a page, wait for an element, click
+	err = chromedp.Run(ctx,
 		chromedp.Sleep(10*time.Second),
 		chromedp.Click(`div:nth-child(3) > div > div > div > div > div.tr.mt3 > button.Button_button__caA8R.Button_primary__c5lrD.Button_large__T4YrY.no-tab-highlight`, chromedp.ByQueryAll),
 		chromedp.Sleep(2*time.Second),
@@ -108,7 +135,8 @@ func GetAddress(amount string) (invoice string) {
 		}),
 	)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return ""
 	}
 	return invoice
 }
@@ -155,7 +183,6 @@ func getHOTPToken(secret string) string {
 	err = binary.Read(r, binary.BigEndian, &header)
 
 	if err != nil {
-		log.Println("deeper")
 		log.Println(err)
 		return ""
 	}

@@ -17,9 +17,7 @@ You will need:
 - an account with Kraken (in the future, will be adding Strike, NiceHash and others)
 
 ## Setup
-You'll want to uncomment the login code in kraken.go the first time you run the application; Kraken will remember your device moving forward
-
-You'll also want to edit the values in .env.sample and rename the file to .env
+You'll want to edit the values in .env.sample and rename the file to .env
 
 If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
 
