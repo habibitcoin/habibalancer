@@ -19,9 +19,10 @@ var (
 	minLoopSize, _    = strconv.Atoi(GoDotEnvVariable("LOOP_SIZE_MIN_SAT"))
 	localAmountMin, _ = strconv.Atoi(GoDotEnvVariable("LOCAL_AMOUNT_MIN_SAT"))
 
-	krakenAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MIN_BTC"), 64)
-	krakenAmtXBTmax, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MAX_BTC"), 64)
-	maxLiqFeePpm, _    = strconv.ParseFloat(GoDotEnvVariable("MAX_LIQ_FEE_PPM"), 64)
+	krakenAmtXBTmin, _         = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MIN_BTC"), 64)
+	krakenAmtXBTmax, _         = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MAX_BTC"), 64)
+	krakenWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_WITHDRAW_BTC_MIN"), 64)
+	maxLiqFeePpm, _            = strconv.ParseFloat(GoDotEnvVariable("MAX_LIQ_FEE_PPM"), 64)
 )
 
 func main() {
@@ -99,6 +100,9 @@ func looper() (err error) {
 		krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
 		krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
 		lnInvoice := kraken.GetAddress(krakenAmtXBT)
+		if lnInvoice == "" {
+			continue
+		}
 		log.Println(lnInvoice)
 		// Try to pay invoice
 		for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
@@ -134,7 +138,7 @@ func looper() (err error) {
 
 		totalOnChainBalance, _ := strconv.Atoi(Balance.TotalBalance)
 
-		if (krakenBalanceFloatXBT*100000000 + float64(totalOnChainBalance)) > float64(minLoopSize) {
+		if (krakenBalanceFloatXBT*100000000+float64(totalOnChainBalance)) > float64(minLoopSize) && krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
 			// Try to withdraw all Kraken BTC because operator balance > liq amount
 			result, err := kraken.Withdraw(krakenBalanceStringXBT)
 			if err != nil {
