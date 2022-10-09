@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -30,13 +29,11 @@ var (
 func GetBalance() (string, error) {
 	result, err := api.Query("Balance", map[string]string{})
 	if err != nil {
-		log.Println("Unexpected error fetching Kraken balance")
+		log.Println("Unexpected error fetching Kraken balance", err)
 		return "", err
 	}
-	// Extract balance from response
-	re := regexp.MustCompile(`[-]?\d[\d,]*[\.]?[\d{2}]*`)
-	krakenBalanceStringXBT := re.FindAllString(fmt.Sprintf("Result: %+v\n", result), -1)
-	return krakenBalanceStringXBT[0], nil
+	res := result.(map[string]interface{})
+	return fmt.Sprint(res["XXBT"]), nil
 }
 
 func Withdraw(amount string) (interface{}, error) {
