@@ -54,23 +54,47 @@ func GetPaymentRequestValid(paymentRequest string) bool {
 	return true
 }
 
-func SendPayReqE(payreq string, fee_limit_sat string) (err error) {
-	resp, err := sendPostRequest("v2/router/send", `{"payment_request":"`+payreq+`","timeout_seconds":"120","fee_limit_sat":"`+fee_limit_sat+`"}`)
-
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		log.Println(err)
-		return err
-	}
-
-	bodyString := string(bodyBytes)
-	log.Println(bodyString)
-
-	return err
+type PaymentRequestPayload struct {
+	PaymentRequest  string   `json:"payment_request"`
+	TimeoutSeconds  string   `json:"timeout_seconds"`
+	OutgoingChanIds []string `json:"outgoing_chan_ids,omit_empty"`
+	FeeLimitSat     string   `json:"fee_limit_sat"`
 }
 
-func SendPayReq(payreq string, fee_limit_sat string) (string, error) {
-	resp, err := sendPostRequest("v2/router/send", `{"payment_request":"`+payreq+`","timeout_seconds":"120","fee_limit_sat":"`+fee_limit_sat+`"}`)
+func SendPayReq(payreq string, feeLimitSat string) (string, error) {
+	excludeDeezy := GoDotEnvVariable("EXCLUDE_DEEZY_FROM_LIQ_OPS")
+
+	payload := &PaymentRequestPayload{
+		PaymentRequest: payreq,
+		TimeoutSeconds: GoDotEnvVariable("PAY_TIMEOUT_SECONDS"),
+		FeeLimitSat:    feeLimitSat,
+	}
+	if excludeDeezy == "true" {
+		ChannelExists, err := ListChannels(GoDotEnvVariable("DEEZY_PEER"))
+		if err != nil {
+			log.Println(err)
+			return "", err
+		} else if len(ChannelExists.Channels) == 0 {
+			// no open deezy channels, so we don't need to exclude him explicitly
+		} else {
+			// Loop through each channel IDs and append to []string array
+			allChannels, err := ListChannels("")
+			if err != nil {
+				log.Println(err)
+				return "", err
+			}
+			for _, channel := range allChannels.Channels {
+				if channel.Peer != GoDotEnvVariable("DEEZY_PEER") {
+					payload.OutgoingChanIds = append(payload.OutgoingChanIds, channel.ChannelId)
+				}
+			}
+		}
+	}
+	resp, err := sendPostRequestJSON("v2/router/send", payload)
+	if err != nil {
+		log.Println(err)
+		return "", err
+	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

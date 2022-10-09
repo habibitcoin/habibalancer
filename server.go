@@ -32,7 +32,7 @@ func main() {
 func looper() (err error) {
 	for {
 		// Step 1: Find if we have a channel opened with Deezy
-		chanExists := deezy.IsChannelOpen(deezyPeer)
+		chanExists := deezy.IsChannelOpen()
 		log.Println(chanExists)
 
 		// Step 2:  If we do not have an open channel, see if we have enough money to open one
@@ -47,6 +47,9 @@ func looper() (err error) {
 
 			// Step 3: Open Channel to Danny
 			totalBalance, _ := strconv.Atoi(Balance.TotalBalance)
+			if totalBalance > 16500000 {
+				totalBalance = 16500000 // dont use wumbo channels
+			}
 			if totalBalance > minLoopSize {
 				log.Println("Opening channel to Deezy")
 				resp, err := lightning.CreateChannel(deezyPeer, totalBalance-500000) // leave 500000 cushion

@@ -29,6 +29,8 @@ type ChannelsResponse struct {
 }
 
 type ChannelResponse struct {
+	Peer          string `json:"remote_pubkey"`
+	ChannelId     string `json:"chan_id"`
 	ChannelPoint  string `json:"channel_point"`
 	LocalBalance  string `json:"local_balance"`
 	RemoteBalance string `json:"remote_balance"`
@@ -37,8 +39,12 @@ type ChannelResponse struct {
 func ListChannels(peer string) (channels ChannelsResponse, err error) {
 	peerHex, _ := hex.DecodeString(peer)
 	peerUrl := base64.URLEncoding.EncodeToString(peerHex)
+	prefix := ""
+	if peer != "" {
+		prefix = "?peer="
+	}
 
-	resp, err := sendGetRequest("v1/channels?peer=" + peerUrl)
+	resp, err := sendGetRequest("v1/channels" + prefix + peerUrl)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -74,6 +75,33 @@ func sendGetRequest(endpoint string) (*http.Response, error) {
 	}
 
 	return resp, err
+}
+
+func sendPostRequestJSON(endpoint string, payload interface{}) (*http.Response, error) {
+	myMacaroon := loadMacaroon()
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Transport: tr,
+	}
+
+	jsonStr, err := json.Marshal(payload)
+
+	req, err := http.NewRequest("POST", LNUrl+endpoint, bytes.NewBuffer(jsonStr))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Grpc-Metadata-macaroon", myMacaroon)
+	req.Header.Add("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 func sendPostRequest(endpoint string, payload string) (*http.Response, error) {
