@@ -14,7 +14,7 @@ func IsChannelOpen(peer string) (status bool) {
 	if err != nil {
 		return false
 	}
-	if ChannelExists.Channels == nil {
+	if len(ChannelExists.Channels) == 0 {
 		return false
 	}
 	return true
