@@ -11,6 +11,7 @@ import (
 	"github.com/habibitcoin/habibalancer/deezy"
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
+	"github.com/habibitcoin/habibalancer/operators/strike"
 	"github.com/joho/godotenv"
 )
 
@@ -22,7 +23,12 @@ var (
 	krakenAmtXBTmin, _         = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MIN_BTC"), 64)
 	krakenAmtXBTmax, _         = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MAX_BTC"), 64)
 	krakenWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_WITHDRAW_BTC_MIN"), 64)
-	maxLiqFeePpm, _            = strconv.ParseFloat(GoDotEnvVariable("MAX_LIQ_FEE_PPM"), 64)
+
+	strikeAmtXBTmin, _         = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MIN_BTC"), 64)
+	strikeAmtXBTmax, _         = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MAX_BTC"), 64)
+	strikeWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("STRIKE_WITHDRAW_BTC_MIN"), 64)
+
+	maxLiqFeePpm, _ = strconv.ParseFloat(GoDotEnvVariable("MAX_LIQ_FEE_PPM"), 64)
 )
 
 func main() {
@@ -91,64 +97,112 @@ func looper() (err error) {
 		a. Check how much local liquidity I have on each channel
 		b. Based on the amount, start attempting liq operations via:
 			i. Kraken
-			ii. NiceHash
+			ii. Strike
 			iii. etc
 		c. Check again if local liquidity is acceptable and if liq op balances exceed deezyAmt, and exceed deezyAmt per channel rate (1000ppm)
 		d. Send funds back to ourselves
 		*/
 
 		// STAY IN LOOP UNTIL BALANCE OF OPERATORS IS > LIQUIDITY OPERATION AMOUNT
-		// Fetch Kraken LN Deposit Address
-		krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
-		krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
-		krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
-		lnInvoice := kraken.GetAddress(krakenAmtXBT)
-		if lnInvoice == "" {
-			continue
-		}
-		log.Println(lnInvoice)
-		// Try to pay invoice
-		for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
-			_, err = lightning.SendPayReq(lnInvoice, krakenAmtXBTfee)
-			if err != nil {
-				log.Println(err)
-				if consecutiveErrors == 9 {
-					time.Sleep(900 * time.Second)
-					continue
-				}
+		if GoDotEnvVariable("KRAKEN_ENABLED") == "true" {
+			// Fetch Kraken LN Deposit Address
+			krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
+			krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
+			krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
+			lnInvoice := kraken.GetAddress(krakenAmtXBT)
+			if lnInvoice == "" {
+				continue
 			}
-			consecutiveErrors = 11
-		}
+			log.Println(lnInvoice)
+			// Try to pay invoice
+			for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
+				_, err = lightning.SendPayReq(lnInvoice, krakenAmtXBTfee)
+				if err != nil {
+					log.Println(err)
+					if consecutiveErrors == 9 {
+						time.Sleep(900 * time.Second)
+						continue
+					}
+				}
+				consecutiveErrors = 11
+			}
 
-		// Step 5: Withdraw funds from Kraken if we have enough money to begin a liq operation
-		// Get our Kraken balance in XBT
-		krakenBalanceStringXBT, err := kraken.GetBalance()
-		if err != nil {
-			continue
-		}
-		log.Println("Kraken balance XBT")
-		log.Println(krakenBalanceStringXBT)
-		krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
-
-		// Get our onChain balance in SAT
-		Balance, err := lightning.GetBalance()
-		if err != nil {
-			log.Println("Unexpected error fetching on-chain balance")
-			log.Println(err)
-		}
-		log.Println("Onchain balance SAT")
-		log.Println(Balance)
-
-		totalOnChainBalance, _ := strconv.Atoi(Balance.TotalBalance)
-
-		if (krakenBalanceFloatXBT*100000000+float64(totalOnChainBalance)) > float64(minLoopSize) && krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
-			// Try to withdraw all Kraken BTC because operator balance > liq amount
-			result, err := kraken.Withdraw(krakenBalanceStringXBT)
+			// Step 5: Withdraw funds from Kraken if we have enough money to begin a liq operation
+			// Get our Kraken balance in XBT
+			krakenBalanceStringXBT, err := kraken.GetBalance()
 			if err != nil {
 				continue
 			}
-			fmt.Printf("Kraken withdrawal successful: %+v\n", result)
+			log.Println("Kraken balance XBT")
+			log.Println(krakenBalanceStringXBT)
+			krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
+
+			// Get our onChain balance in SAT
+			Balance, err := lightning.GetBalance()
+			if err != nil {
+				log.Println("Unexpected error fetching on-chain balance")
+				log.Println(err)
+			}
+			log.Println("Onchain balance SAT")
+			log.Println(Balance)
+
+			totalOnChainBalance, _ := strconv.Atoi(Balance.TotalBalance)
+
+			if (krakenBalanceFloatXBT*100000000+float64(totalOnChainBalance)) > float64(minLoopSize) && krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
+				// Try to withdraw all Kraken BTC because operator balance > liq amount
+				result, err := kraken.Withdraw(krakenBalanceStringXBT)
+				if err != nil {
+					log.Println(err)
+					continue
+				}
+				fmt.Printf("Kraken withdrawal successful: %+v\n", result)
+			}
 		}
+
+		if GoDotEnvVariable("STRIKE_ENABLED") == "true" {
+			// Begin Strike Liquidity Operation attempt
+
+			strikeAmtXBTi := strikeAmtXBTmin + rand.Float64()*(strikeAmtXBTmax-strikeAmtXBTmin)
+			strikeAmtXBT := fmt.Sprintf("%.5f", strikeAmtXBTi)
+			strikeAmtXBTfee := fmt.Sprintf("%.0f", strikeAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
+			lnInvoice := strike.GetAddress(strikeAmtXBT)
+			if lnInvoice == "" {
+				continue
+			}
+			log.Println(lnInvoice)
+			// Try to pay invoice
+			for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
+				_, err = lightning.SendPayReq(lnInvoice, strikeAmtXBTfee)
+				if err != nil {
+					log.Println(err)
+					if consecutiveErrors == 9 {
+						time.Sleep(900 * time.Second)
+						continue
+					}
+				}
+				consecutiveErrors = 11
+			}
+
+			// Withdraw funds from Strike if our balance is greater than minimum Strike withdrawal
+			// Get our Kraken balance in XBT
+			strikeBalanceStringXBT, err := strike.GetBalance()
+			if err != nil {
+				continue
+			}
+			log.Println("Strike balance BTC")
+			log.Println(strikeBalanceStringXBT)
+			strikeBalanceFloatXBT, _ := strconv.ParseFloat(strikeBalanceStringXBT, 64)
+
+			if strikeBalanceFloatXBT > strikeWithdrawAmtXBTmin {
+				err := strike.Withdraw(strikeBalanceStringXBT)
+				if err != "" {
+					log.Println(err)
+					continue
+				}
+				fmt.Printf("Strike withdrawal successful: %+v\n", err)
+			}
+		}
+
 	}
 
 	return nil

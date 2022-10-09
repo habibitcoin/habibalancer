@@ -14,7 +14,9 @@ The application utilizes the LND REST API, and Chrome Driver to automate Kraken'
 You will need:
 - an LND node that you have REST access to
 - a machine with Go 1.18 or higher installed
-- an account with Kraken (in the future, will be adding Strike, NiceHash and others)
+- an account with Kraken OR Strike (get $5 signup bonus to Strike if you use my referral code [https://invite.strike.me/NI73SY](https://invite.strike.me/NI73SY))
+- an account with Strike ()
+- (in the future, will be adding NiceHash and others)
 
 ## Setup
 You'll want to edit the values in .env.sample and rename the file to .env

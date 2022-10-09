@@ -6,6 +6,7 @@ require (
 	github.com/beldur/kraken-go-api-client v0.0.0-20210512194559-2c29669c4ecc
 	github.com/chromedp/cdproto v0.0.0-20221007020655-65fa4346613f
 	github.com/chromedp/chromedp v0.8.6
+	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.4.0
 )
 
