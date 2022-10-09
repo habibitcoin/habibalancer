@@ -137,18 +137,7 @@ func looper() (err error) {
 			log.Println(krakenBalanceStringXBT)
 			krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
 
-			// Get our onChain balance in SAT
-			Balance, err := lightning.GetBalance()
-			if err != nil {
-				log.Println("Unexpected error fetching on-chain balance")
-				log.Println(err)
-			}
-			log.Println("Onchain balance SAT")
-			log.Println(Balance)
-
-			totalOnChainBalance, _ := strconv.Atoi(Balance.TotalBalance)
-
-			if (krakenBalanceFloatXBT*100000000+float64(totalOnChainBalance)) > float64(minLoopSize) && krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
+			if krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
 				// Try to withdraw all Kraken BTC because operator balance > liq amount
 				result, err := kraken.Withdraw(krakenBalanceStringXBT)
 				if err != nil {
