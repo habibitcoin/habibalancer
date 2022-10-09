@@ -22,14 +22,12 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var (
-	api = krakenapi.New(GoDotEnvVariable("KRAKEN_API_KEY"), GoDotEnvVariable("KRAKEN_API_SECRET"))
-)
+var api = krakenapi.New(GoDotEnvVariable("KRAKEN_API_KEY"), GoDotEnvVariable("KRAKEN_API_SECRET"))
 
 func GetBalance() (string, error) {
 	result, err := api.Query("Balance", map[string]string{})
 	if err != nil {
-		log.Println("Unexpected error fetching Kraken balance", err)
+		log.Println("Unexpected error fetching Kraken balance: ", err)
 		return "", err
 	}
 	res := result.(map[string]interface{})
@@ -141,10 +139,8 @@ func GetAddress(amount string) (invoice string) {
 // use godot package to load/read the .env file and
 // return the value of the key
 func GoDotEnvVariable(key string) string {
-
 	// load .env file
 	err := godotenv.Load(".env")
-
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}
@@ -153,8 +149,8 @@ func GoDotEnvVariable(key string) string {
 }
 
 func getHOTPToken(secret string) string {
-	//Converts secret to base32 Encoding. Base32 encoding desires a 32-character
-	//subset of the twenty-six letters A–Z and ten digits 0–9
+	// Converts secret to base32 Encoding. Base32 encoding desires a 32-character
+	// subset of the twenty-six letters A–Z and ten digits 0–9
 	key, err := base32.StdEncoding.DecodeString(strings.ToUpper(secret))
 	if err != nil {
 		log.Println(err)
@@ -163,7 +159,7 @@ func getHOTPToken(secret string) string {
 	bs := make([]byte, 8)
 	binary.BigEndian.PutUint64(bs, uint64(time.Now().Unix()/30))
 
-	//Signing the value using HMAC-SHA1 Algorithm
+	// Signing the value using HMAC-SHA1 Algorithm
 	hash := hmac.New(sha1.New, key)
 	hash.Write(bs)
 	h := hash.Sum(nil)
@@ -175,7 +171,7 @@ func getHOTPToken(secret string) string {
 	o := (h[19] & 15)
 
 	var header uint32
-	//Get 32 bit chunk from hash starting at the o
+	// Get 32 bit chunk from hash starting at the o
 	r := bytes.NewReader(h[o : o+4])
 	err = binary.Read(r, binary.BigEndian, &header)
 
@@ -183,11 +179,11 @@ func getHOTPToken(secret string) string {
 		log.Println(err)
 		return ""
 	}
-	//Ignore most significant bits as per RFC 4226.
-	//Takes division from one million to generate a remainder less than < 7 digits
+	// Ignore most significant bits as per RFC 4226.
+	// Takes division from one million to generate a remainder less than < 7 digits
 	h12 := (int(header) & 0x7fffffff) % 1000000
 
-	//Converts number as a string
+	// Converts number as a string
 	otp := strconv.Itoa(int(h12))
 
 	return prefix0(otp)
