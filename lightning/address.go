@@ -6,14 +6,16 @@ import (
 	"log"
 )
 
-//NESTED_WITNESS_PUBKEY_HASH
-
 type AddressResponse struct {
 	Address string `json:"address"`
 }
 
 func CreateAddress() (string, error) {
 	resp, err := sendGetRequest("v1/newaddress?type=2")
+	if err != nil {
+		log.Println(err)
+		return "", err
+	}
 
 	var address AddressResponse
 
@@ -22,7 +24,10 @@ func CreateAddress() (string, error) {
 		log.Println(err)
 		return "", err
 	}
-	json.Unmarshal(bodyBytes, &address)
+	if err := json.Unmarshal(bodyBytes, &address); err != nil {
+		log.Println(err)
+		return "", err
+	}
 
 	return address.Address, nil
 }

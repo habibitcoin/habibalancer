@@ -50,7 +50,6 @@ func Withdraw() (interface{}, error) {
 	krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
 
 	if krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
-
 		result, err := api.Query("Withdraw", map[string]string{
 			"asset":  "xbt",
 			"key":    "umbrel",
@@ -68,7 +67,7 @@ func Withdraw() (interface{}, error) {
 }
 
 // Receives an amount defined in BTC, returns an invoice
-// NOTE: The first time you run this, you need
+// NOTE: The first time you run this, you need.
 func GetAddress(amount string) (invoice string) {
 	// create chrome instance
 	ctx, cancel := chromedp.NewExecAllocator(
@@ -126,7 +125,6 @@ func GetAddress(amount string) (invoice string) {
 			log.Println(err)
 			return ""
 		}
-
 	}
 
 	if location != "https://www.kraken.com/u/funding/deposit?asset=BTC&method=1" {
@@ -156,7 +154,7 @@ func GetAddress(amount string) (invoice string) {
 }
 
 // use godot package to load/read the .env file and
-// return the value of the key
+// return the value of the key.
 func GoDotEnvVariable(key string) string {
 	// load .env file
 	err := godotenv.Load(".env")

@@ -21,7 +21,7 @@ type itemResponse struct {
 }
 
 // Receives an amount defined in BTC, returns an invoice
-// NOTE: The first time you run this, you need
+// NOTE: The first time you run this, you need.
 func getHistory() (history historyResponse, err error) {
 	resp, err := sendGetRequest(historyEndpoint)
 

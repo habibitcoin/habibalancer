@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"strconv"
 )
 
@@ -13,6 +14,10 @@ func CreateChannel(peer string, amount int) (string, error) {
 	peerUrl := base64.URLEncoding.EncodeToString(peerHex)
 
 	resp, err := sendPostRequest("v1/channels", `{"node_pubkey":"`+peerUrl+`","sat_per_vbyte":"1","spend_unconfirmed":true,"private":false,"local_funding_amount":"`+strconv.Itoa(amount)+`"}`)
+	if err != nil {
+		log.Println(err)
+		return "", err
+	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -45,13 +50,20 @@ func ListChannels(peer string) (channels ChannelsResponse, err error) {
 	}
 
 	resp, err := sendGetRequest("v1/channels" + prefix + peerUrl)
+	if err != nil {
+		log.Println(err)
+		return channels, err
+	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return channels, err
 	}
 	channels = ChannelsResponse{}
-	json.Unmarshal(bodyBytes, &channels)
+	if err := json.Unmarshal(bodyBytes, &channels); err != nil {
+		log.Println(err)
+		return channels, err
+	}
 
 	return channels, err
 }

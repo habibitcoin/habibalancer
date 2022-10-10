@@ -16,7 +16,7 @@ import (
 	"github.com/sqweek/dialog"
 )
 
-// Private Strike Endpoint and Methods
+// Private Strike Endpoint and Methods.
 const (
 	privateStrikeURL = "https://api.zaphq.io/api/v0.4/"
 
@@ -48,7 +48,7 @@ const (
 	ratesEndpoint = "rates/ticker" // GET
 )
 
-// Receives an amount defined in BTC, returns success
+// Receives an amount defined in BTC, returns success.
 func Withdraw() (bool, error) {
 	strikeBalanceStringXBT, err := GetBalance()
 	if err != nil {
@@ -88,7 +88,7 @@ func GetBalance() (string, error) {
 	return btcBalance.Balance.Amount, nil
 }
 
-// Receives an amount defined in BTC, returns an invoice
+// Receives an amount defined in BTC, returns an invoice.
 func GetAddress(amount string) (invoice string) {
 	// First we need to get price of BTC
 	rates, err := getRates()
@@ -150,7 +150,7 @@ func GetAddress(amount string) (invoice string) {
 	return lnInvoice.Invoice
 }
 
-// Repurchase attempts to buy back all received BTC that are sitting as a USD balance without losses
+// Repurchase attempts to buy back all received BTC that are sitting as a USD balance without losses.
 func StrikeRepurchaser() (err error) {
 	firstRun := true
 	for {
@@ -213,7 +213,6 @@ func StrikeRepurchaser() (err error) {
 		} else {
 			log.Println("Nothing to buy back!")
 		}
-
 	}
 
 	return nil
@@ -290,12 +289,10 @@ func sendPostRequest(endpoint string, payload interface{}) (*http.Response, erro
 }
 
 // use godot package to load/read the .env file and
-// return the value of the key
+// return the value of the key.
 func GoDotEnvVariable(key string) string {
-
 	// load .env file
 	err := godotenv.Load(".env")
-
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}

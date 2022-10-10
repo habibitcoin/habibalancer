@@ -12,7 +12,6 @@ import (
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
 	"github.com/habibitcoin/habibalancer/operators/strike"
-
 	"github.com/joho/godotenv"
 )
 
@@ -73,7 +72,6 @@ func looper() (err error) {
 				}
 				log.Println("Channel Opened Successfully!")
 				log.Println(resp)
-
 			}
 		} else {
 			// Check if our open channel with Deezy's local balance is less than minimum close satoshis
@@ -144,7 +142,6 @@ func looper() (err error) {
 			} else {
 				fmt.Printf("Kraken withdrawal successful: %+v\n", result)
 			}
-
 		}
 
 		if GoDotEnvVariable("STRIKE_ENABLED") == "true" {
@@ -179,7 +176,6 @@ func looper() (err error) {
 				continue
 			}
 			log.Println("Strike withdrawal successful")
-
 		}
 		time.Sleep(15 * time.Second)
 	}
@@ -188,12 +184,10 @@ func looper() (err error) {
 }
 
 // use godot package to load/read the .env file and
-// return the value of the key
+// return the value of the key.
 func GoDotEnvVariable(key string) string {
-
 	// load .env file
 	err := godotenv.Load(".env")
-
 	if err != nil {
 		log.Fatalf("Error loading .env file")
 	}

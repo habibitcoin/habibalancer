@@ -29,10 +29,10 @@ type exchangeResponse struct {
 
 type exchangeQuoteResponse struct {
 	QuoteId string `json:"quoteId"`
-	Result  string `json:"result"` //we wanted COMPLETED
+	Result  string `json:"result"`
 }
 
-// Receives an amount defined in USD, returns a quote
+// Receives an amount defined in USD, returns a quote.
 func exchange(sourceAmount string, sourceCurrency string, targetCurrency string) (quote exchangeResponse, err error) {
 	var amount amountType
 	amount.Currency = sourceCurrency
