@@ -94,7 +94,6 @@ func GetInvoicePaid(invoice InvoiceResponse) (bool, error) {
 		invoicePaid = true
 	}
 
-	//TESTING
 	invoicePaid = true
 
 	return invoicePaid, err

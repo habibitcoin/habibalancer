@@ -3,6 +3,7 @@ package lightning
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 )
 
 type BalanceResponse struct {
@@ -13,13 +14,20 @@ type BalanceResponse struct {
 
 func GetBalance() (balances BalanceResponse, err error) {
 	resp, err := sendGetRequest("v1/balance/blockchain")
+	if err != nil {
+		log.Println(err)
+		return balances, err
+	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return balances, err
 	}
 	balances = BalanceResponse{}
-	json.Unmarshal(bodyBytes, &balances)
+	if err := json.Unmarshal(bodyBytes, &balances); err != nil {
+		log.Println(err)
+		return balances, err
+	}
 
 	return balances, err
 }

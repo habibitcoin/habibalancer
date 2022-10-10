@@ -8,9 +8,11 @@ require (
 	github.com/chromedp/chromedp v0.8.6
 	github.com/google/uuid v1.3.0
 	github.com/joho/godotenv v1.4.0
+	github.com/sqweek/dialog v0.0.0-20220809060634-e981b270ebbf
 )
 
 require (
+	github.com/TheTitanrain/w32 v0.0.0-20200114052255-2654d97dbd3d // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
 	github.com/gobwas/httphead v0.1.0 // indirect
 	github.com/gobwas/pool v0.2.1 // indirect

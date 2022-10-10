@@ -1,7 +1,9 @@
 package strike
 
 import (
+	"encoding/json"
 	"io/ioutil"
+	"log"
 )
 
 type withdrawalPayload struct {
@@ -9,7 +11,11 @@ type withdrawalPayload struct {
 	Amount  amountType `json:"amount"`
 }
 
-func createWithdrawal(address string, BTCamount string) (err error) {
+type withdrawalResponse struct {
+	NewBalance amountType `json:"newPrepaidBalance"` // we want 0 amount after withdrawal
+}
+
+func createWithdrawal(address string, BTCamount string) (success bool, err error) {
 	var amount amountType
 	amount.Currency = "BTC"
 	amount.Amount = BTCamount
@@ -17,11 +23,21 @@ func createWithdrawal(address string, BTCamount string) (err error) {
 		Address: address,
 		Amount:  amount,
 	})
-
-	_, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		log.Println(err)
+		return false, err
+	}
+	var withdrawalResp withdrawalResponse
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return false, err
 	}
 
-	return nil
+	json.Unmarshal(bodyBytes, &withdrawalResp)
+	if withdrawalResp.NewBalance.Amount != "0" {
+		return false, err
+	}
+
+	return true, err
 }
