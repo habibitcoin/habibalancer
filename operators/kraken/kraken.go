@@ -22,7 +22,11 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var api = krakenapi.New(GoDotEnvVariable("KRAKEN_API_KEY"), GoDotEnvVariable("KRAKEN_API_SECRET"))
+var (
+	api = krakenapi.New(GoDotEnvVariable("KRAKEN_API_KEY"), GoDotEnvVariable("KRAKEN_API_SECRET"))
+
+	krakenWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_WITHDRAW_BTC_MIN"), 64)
+)
 
 func GetBalance() (string, error) {
 	result, err := api.Query("Balance", map[string]string{})
@@ -34,18 +38,33 @@ func GetBalance() (string, error) {
 	return fmt.Sprint(res["XXBT"]), nil
 }
 
-func Withdraw(amount string) (interface{}, error) {
-	result, err := api.Query("Withdraw", map[string]string{
-		"asset":  "xbt",
-		"key":    "umbrel",
-		"amount": amount,
-	})
+func Withdraw() (interface{}, error) {
+	krakenBalanceStringXBT, err := GetBalance()
 	if err != nil {
-		log.Println("Unexpected error performing Kraken withdrawal")
+		log.Println("Error fetching Kraken balance")
 		log.Println(err)
 		return nil, err
 	}
-	return result, nil
+	log.Println("Kraken balance XBT")
+	log.Println(krakenBalanceStringXBT)
+	krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
+
+	if krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
+
+		result, err := api.Query("Withdraw", map[string]string{
+			"asset":  "xbt",
+			"key":    "umbrel",
+			"amount": krakenBalanceStringXBT,
+		})
+		if err != nil {
+			log.Println("Unexpected error performing Kraken withdrawal")
+			log.Println(err)
+			return nil, err
+		}
+		return result, nil
+	}
+	log.Println("Balance too low for withdrawal " + krakenBalanceStringXBT)
+	return nil, nil
 }
 
 // Receives an amount defined in BTC, returns an invoice

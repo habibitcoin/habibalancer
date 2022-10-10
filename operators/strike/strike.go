@@ -8,7 +8,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
+	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/joho/godotenv"
 )
 
@@ -22,14 +25,18 @@ const (
 
 	exchangeEndpoint        = "exchange" // confirm with /:quoteId
 	confirmExchangeEndpoint = "exchange/:quoteId"
-	// {"exchangeType":"SELL","source":{"currency":"USD","amount":"10.00"},"currency":"BTC"}
-	// {"quoteId":"101b81fe-c22c-44bd-bbc7-870f518fafa7","created":1665292489014,"validUntil":1665292498000,"instant":true,"source":{"amount":{"currency":"USD","amount":"10.00"},"fee":{"currency":"USD","amount":"0.00"},"total":{"currency":"USD","amount":"10.00"}},"target":{"amount":{"currency":"BTC","amount":"0.00051549"},"fee":{"currency":"BTC","amount":"0"},"total":{"currency":"BTC","amount":"0.00051549"}},"rate":{"amount":"19399.0184","sourceCurrency":"BTC","targetCurrency":"USD"}}
 
 	historyEndpoint = "user/history"
-	// {"items":[{"itemId":"9d0f7a8f-2f3b-4594-acea-7728baf280a7","total":{"currency":"USD","amount":"10.00"},"amount":{"currency
 )
 
-var privateEndpoints = []string{balancesAndLimitsEndpoint, withdrawEndpoint, exchangeEndpoint, confirmExchangeEndpoint, historyEndpoint}
+var (
+	privateEndpoints = []string{balancesAndLimitsEndpoint, withdrawEndpoint, exchangeEndpoint, confirmExchangeEndpoint, historyEndpoint}
+
+	strikeWithdrawAmtXBTmin, _          = strconv.ParseFloat(GoDotEnvVariable("STRIKE_WITHDRAW_BTC_MIN"), 64)
+	strikeDailyLimitBufferUSD, _        = strconv.ParseFloat(GoDotEnvVariable("STRIKE_DAILY_LIMIT_BUFFER_USD"), 64)
+	strikeWeeklyLimitBufferUSD, _       = strconv.ParseFloat(GoDotEnvVariable("STRIKE_WEEKLY_LIMIT_BUFFER_USD"), 64)
+	strikeRepurchaserCooldownSeconds, _ = strconv.Atoi(GoDotEnvVariable("STRIKE_REPURCHASER_COOLDOWN_SECONDS"))
+)
 
 const (
 	publicStrikeURL = "https://api.strike.me/v1/"
@@ -40,14 +47,44 @@ const (
 	ratesEndpoint = "rates/ticker" // GET
 )
 
-// Receives an amount defined in BTC, returns an invoice
-// NOTE: The first time you run this, you need
-func Withdraw(amount string) (invoice string) {
-	return ""
+// Receives an amount defined in BTC, returns success
+func Withdraw() (bool, error) {
+	strikeBalanceStringXBT, err := GetBalance()
+	if err != nil {
+		return false, err
+	}
+	log.Println("Strike balance BTC")
+	log.Println(strikeBalanceStringXBT)
+	strikeBalanceFloatXBT, _ := strconv.ParseFloat(strikeBalanceStringXBT, 64)
+
+	if strikeBalanceFloatXBT > strikeWithdrawAmtXBTmin {
+		address, err := lightning.CreateAddress()
+		if err != nil {
+			log.Println("Error from LND creating new address for Strike withdrawal")
+			return false, err
+		}
+
+		success, err := createWithdrawal(address, strikeBalanceStringXBT)
+		if err != nil {
+			return false, err
+		}
+		return success, nil
+	}
+
+	log.Println("Balance too low for withdrawal " + strikeBalanceStringXBT)
+	return false, nil
 }
 
 func GetBalance() (string, error) {
-	return "", nil
+	success, err := GetBalanceAndLimits()
+	if err != nil {
+		return "", err
+	}
+	btcBalance := success.Balances[0]
+	if btcBalance.Balance.Currency != "BTC" {
+		btcBalance = success.Balances[1]
+	}
+	return btcBalance.Balance.Amount, nil
 }
 
 // Receives an amount defined in BTC, returns an invoice
@@ -72,6 +109,25 @@ func GetAddress(amount string) (invoice string) {
 	USDfloat := amountFloat * priceFloat
 	USDstring := fmt.Sprintf("%.2f", USDfloat)
 
+	// See if we have enough left in our limits to repurchase + withdraw
+	balanceAndLimits, err := GetBalanceAndLimits()
+	if err != nil {
+		return ""
+	}
+
+	BTCinUSDlimits := balanceAndLimits.Limits[0]
+	if BTCinUSDlimits.Currency != "USD" {
+		BTCinUSDlimits = balanceAndLimits.Limits[1]
+	}
+
+	dailyBTCWithdrawalRemaining, _ := strconv.ParseFloat(BTCinUSDlimits.BTCDailyLimit.Remaining.Amount, 64)
+	weeklyBTCWithdrawalRemaining, _ := strconv.ParseFloat(BTCinUSDlimits.BTCWeeklyLimit.Remaining.Amount, 64)
+
+	if ((dailyBTCWithdrawalRemaining - USDfloat) < strikeDailyLimitBufferUSD) || ((weeklyBTCWithdrawalRemaining - USDfloat) < strikeWeeklyLimitBufferUSD) {
+		log.Println("Not enough buffer remanining to send to Strike")
+		return ""
+	}
+
 	// Check if we will be able to withdraw our current balance + this rebalance
 	// after taking our daily and weekly limits into consideration
 	// Neither should be allowed to be exceeded, and leave $250 of buffer
@@ -95,10 +151,66 @@ func GetAddress(amount string) (invoice string) {
 
 // Repurchase attempts to buy back all received BTC that are sitting as a USD balance without losses
 func StrikeRepurchaser() (err error) {
-	// First we grab our current Strike balance
-	// Then we fetch our recents transactions (enough to sum up to our entire balance)
-	// Then we see how much of our balance is from receives, and what BTC amount we sent to Strike
-	// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
+	firstRun := true
+	for {
+		if !firstRun {
+			time.Sleep(time.Duration(strikeRepurchaserCooldownSeconds) * time.Second)
+		}
+		firstRun = false
+
+		// First we fetch our recents transactions (looking back to our most recent BTC purchase, so we dont impact other activity)
+		recentTransactions, err := getHistory()
+		if err != nil {
+			log.Println("Strike repurchase crashed getting recentTransactions")
+			log.Println(err)
+			return err
+		}
+		// Then we need to buy back all the BTC from receives that have the description "rebealanc". Sum these amounts.
+		var spendAmountUSD float64
+		var buyBackAmountBTC float64
+		for _, transaction := range recentTransactions.Items {
+			if strings.Contains(transaction.Description, "rebealanc") && transaction.Type == "OrderReceive" && transaction.State == "COMPLETED" {
+				amountFloat, _ := strconv.ParseFloat(transaction.Amount.Amount, 64)
+				spendAmountUSD = spendAmountUSD + amountFloat
+				rateFloat, _ := strconv.ParseFloat(transaction.Rate.Amount, 64)
+				buyBackAmountBTC = buyBackAmountBTC + (amountFloat / rateFloat)
+			} else if transaction.Type == "ExchangeSell" && transaction.State == "COMPLETED" {
+				break
+			} else {
+				continue
+			}
+		}
+		if spendAmountUSD > 0 {
+			// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
+			spendAmountUSDString := fmt.Sprintf("%.2f", spendAmountUSD)
+			createdQuote, err := exchange(spendAmountUSDString, "USD", "BTC")
+			if err != nil {
+				log.Println("Error creating quote for repurchaser")
+				log.Println(err)
+				continue
+			} else if createdQuote.USD.Fee.Amount != "0.00" {
+				log.Println(createdQuote.USD.Fee.Amount)
+				log.Println("Unexpected non-zero fee!")
+				os.Exit(1)
+			}
+
+			quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
+			if quotedBTC >= buyBackAmountBTC || 1 == 1 {
+				time.Sleep(1 * time.Second)
+				success, err := confirmExchange(createdQuote.QuoteId)
+				if err != nil || !success {
+					log.Println("Error accepting quote on exchange for repurchaser")
+					log.Println(err)
+				}
+			} else {
+				log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", quotedBTC) + " BTC")
+			}
+		} else {
+			log.Println("Nothing to buy back!")
+		}
+
+	}
+
 	return nil
 }
 
@@ -145,11 +257,16 @@ func sendPostRequest(endpoint string, payload interface{}) (*http.Response, erro
 	if contains(privateEndpoints, endpoint) {
 		URL = privateStrikeURL
 	}
+	if strings.Contains(endpoint, "exchange") {
+		// addresses bug for detecting endpoints with string replacing
+		URL = privateStrikeURL
+	}
 
 	log.Println(URL + endpoint)
 
 	req, err := http.NewRequest("POST", URL+endpoint, bytes.NewBuffer(jsonStr))
 	if err != nil {
+		log.Println(err)
 		return nil, err
 	}
 

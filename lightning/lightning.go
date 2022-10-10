@@ -13,10 +13,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type AddressResponse struct {
-	Address string `json:'address'`
-}
-
 // Set admin.macaroon hex
 var (
 	Macaroon = ""

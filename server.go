@@ -12,6 +12,7 @@ import (
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
 	"github.com/habibitcoin/habibalancer/operators/strike"
+
 	"github.com/joho/godotenv"
 )
 
@@ -20,13 +21,11 @@ var (
 	minLoopSize, _    = strconv.Atoi(GoDotEnvVariable("LOOP_SIZE_MIN_SAT"))
 	localAmountMin, _ = strconv.Atoi(GoDotEnvVariable("LOCAL_AMOUNT_MIN_SAT"))
 
-	krakenAmtXBTmin, _         = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MIN_BTC"), 64)
-	krakenAmtXBTmax, _         = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MAX_BTC"), 64)
-	krakenWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_WITHDRAW_BTC_MIN"), 64)
+	krakenAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MIN_BTC"), 64)
+	krakenAmtXBTmax, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MAX_BTC"), 64)
 
-	strikeAmtXBTmin, _         = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MIN_BTC"), 64)
-	strikeAmtXBTmax, _         = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MAX_BTC"), 64)
-	strikeWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("STRIKE_WITHDRAW_BTC_MIN"), 64)
+	strikeAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MIN_BTC"), 64)
+	strikeAmtXBTmax, _ = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MAX_BTC"), 64)
 
 	maxLiqFeePpm, _ = strconv.ParseFloat(GoDotEnvVariable("MAX_LIQ_FEE_PPM"), 64)
 )
@@ -36,7 +35,15 @@ func main() {
 }
 
 func looper() (err error) {
+	if GoDotEnvVariable("STRIKE_ENABLED") == "true" {
+		go strike.StrikeRepurchaser()
+	}
+	firstRun := true
 	for {
+		if !firstRun {
+			time.Sleep(15 * time.Second)
+		}
+		firstRun = false
 		// Step 1: Find if we have a channel opened with Deezy
 		chanExists := deezy.IsChannelOpen()
 		log.Println(chanExists)
@@ -129,69 +136,52 @@ func looper() (err error) {
 
 			// Step 5: Withdraw funds from Kraken if we have enough money to begin a liq operation
 			// Get our Kraken balance in XBT
-			krakenBalanceStringXBT, err := kraken.GetBalance()
-			if err != nil {
-				continue
-			}
-			log.Println("Kraken balance XBT")
-			log.Println(krakenBalanceStringXBT)
-			krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
 
-			if krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
-				// Try to withdraw all Kraken BTC because operator balance > liq amount
-				result, err := kraken.Withdraw(krakenBalanceStringXBT)
-				if err != nil {
-					log.Println(err)
-					continue
-				}
+			// Try to withdraw all Kraken BTC because operator balance > liq amount
+			result, err := kraken.Withdraw()
+			if err != nil {
+				log.Println(err)
+			} else {
 				fmt.Printf("Kraken withdrawal successful: %+v\n", result)
 			}
+
 		}
 
 		if GoDotEnvVariable("STRIKE_ENABLED") == "true" {
 			// Begin Strike Liquidity Operation attempt
-
-			strikeAmtXBTi := strikeAmtXBTmin + rand.Float64()*(strikeAmtXBTmax-strikeAmtXBTmin)
-			strikeAmtXBT := fmt.Sprintf("%.5f", strikeAmtXBTi)
-			strikeAmtXBTfee := fmt.Sprintf("%.0f", strikeAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
-			lnInvoice := strike.GetAddress(strikeAmtXBT)
-			if lnInvoice == "" {
-				continue
-			}
-			log.Println(lnInvoice)
-			// Try to pay invoice
-			for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
-				_, err = lightning.SendPayReq(lnInvoice, strikeAmtXBTfee)
-				if err != nil {
-					log.Println(err)
-					if consecutiveErrors == 9 {
-						time.Sleep(900 * time.Second)
-						continue
-					}
-				}
-				consecutiveErrors = 11
-			}
-
-			// Withdraw funds from Strike if our balance is greater than minimum Strike withdrawal
-			// Get our Kraken balance in XBT
-			strikeBalanceStringXBT, err := strike.GetBalance()
-			if err != nil {
-				continue
-			}
-			log.Println("Strike balance BTC")
-			log.Println(strikeBalanceStringXBT)
-			strikeBalanceFloatXBT, _ := strconv.ParseFloat(strikeBalanceStringXBT, 64)
-
-			if strikeBalanceFloatXBT > strikeWithdrawAmtXBTmin {
-				err := strike.Withdraw(strikeBalanceStringXBT)
-				if err != "" {
-					log.Println(err)
+			if strikeAmtXBTmax > 0 {
+				strikeAmtXBTi := strikeAmtXBTmin + rand.Float64()*(strikeAmtXBTmax-strikeAmtXBTmin)
+				strikeAmtXBT := fmt.Sprintf("%.5f", strikeAmtXBTi)
+				strikeAmtXBTfee := fmt.Sprintf("%.0f", strikeAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
+				lnInvoice := strike.GetAddress(strikeAmtXBT)
+				if lnInvoice == "" {
 					continue
 				}
-				fmt.Printf("Strike withdrawal successful: %+v\n", err)
+				log.Println(lnInvoice)
+				// Try to pay invoice
+				for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
+					_, err = lightning.SendPayReq(lnInvoice, strikeAmtXBTfee)
+					if err != nil {
+						log.Println(err)
+						if consecutiveErrors == 9 {
+							time.Sleep(900 * time.Second)
+							continue
+						}
+					}
+					consecutiveErrors = 11
+				}
 			}
-		}
 
+			// Withdraw funds from Strike
+			success, err := strike.Withdraw()
+			if err != nil || success == false {
+				log.Println(err)
+				continue
+			}
+			log.Println("Strike withdrawal successful")
+
+		}
+		time.Sleep(15 * time.Second)
 	}
 
 	return nil

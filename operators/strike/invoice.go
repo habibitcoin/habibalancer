@@ -3,7 +3,6 @@ package strike
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"strings"
 
 	"github.com/google/uuid"
@@ -75,7 +74,6 @@ type rateType struct {
 type RatesResponse []rateType
 
 func getRates() (rates RatesResponse, err error) {
-	log.Println(ratesEndpoint)
 	resp, err := sendGetRequest(ratesEndpoint)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
