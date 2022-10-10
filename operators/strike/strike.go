@@ -13,6 +13,7 @@ import (
 
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/joho/godotenv"
+	"github.com/sqweek/dialog"
 )
 
 // Private Strike Endpoint and Methods
@@ -195,12 +196,16 @@ func StrikeRepurchaser() (err error) {
 			}
 
 			quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
-			if quotedBTC >= buyBackAmountBTC || 1 == 1 {
-				time.Sleep(1 * time.Second)
-				success, err := confirmExchange(createdQuote.QuoteId)
-				if err != nil || !success {
-					log.Println("Error accepting quote on exchange for repurchaser")
-					log.Println(err)
+			if quotedBTC >= buyBackAmountBTC {
+				if GoDotEnvVariable("STRIKE_REPURCHASER_MANUAL_MODE") == "true" {
+					dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
+				} else {
+					time.Sleep(1 * time.Second)
+					success, err := confirmExchange(createdQuote.QuoteId)
+					if err != nil || !success {
+						log.Println("Error accepting quote on exchange for repurchaser")
+						log.Println(err)
+					}
 				}
 			} else {
 				log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", quotedBTC) + " BTC")
