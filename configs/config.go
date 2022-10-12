@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/joho/godotenv"
 )
@@ -61,8 +62,32 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 	err = godotenv.Load(".env")
 	if err != nil {
 		log.Printf("Error loading .env file, falling back to .env.sample: %v", err)
-		if fatalErr := godotenv.Load(".env.sample"); fatalErr != nil {
-			log.Fatalf(fatalErr.Error())
+		if fatalErr := godotenv.Load("env/.env.sample"); fatalErr != nil {
+			// load file from bindata.go
+			// create dependencies
+			// data, _ := Asset("env/.env.sample")
+			// os.WriteFile(".env.sample", data, 0644)
+
+			files := AssetNames()
+
+			for _, file := range files {
+				log.Println(file)
+				data, _ := Asset(file)
+
+				dir, _ := filepath.Split(file)
+
+				if _, err := os.Stat(dir); os.IsNotExist(err) {
+					// your file does not exist
+					os.MkdirAll(dir, 0700)
+				}
+
+				err := os.WriteFile(file, data, 0644)
+				log.Println(err)
+			}
+
+			if fatalErr := godotenv.Load("env/.env.sample"); fatalErr != nil {
+				log.Fatalf(fatalErr.Error())
+			}
 		}
 	}
 
