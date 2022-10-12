@@ -47,6 +47,12 @@ func main() {
 			return c.String(http.StatusOK, "Looping started!\n")
 		})
 
+		// err := http.ListenAndServe(":9090", http.FileServer(http.Dir("docs")))
+		if err != nil {
+			fmt.Println("Failed to start server", err)
+			return
+		}
+
 		// Start server
 		e.Logger.Fatal(e.Start(":1323"))
 	} else {
