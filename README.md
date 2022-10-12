@@ -13,8 +13,7 @@ The application utilizes the LND REST API, and Chrome Driver to automate Kraken'
 ## Requirements
 You will need:
 - an LND node that you have REST access to
-- a machine with Go 1.18 or higher installed
-- an account with Kraken OR Strike (get $5 signup bonus to Strike if you use my referral code [https://invite.strike.me/NI73SY](https://invite.strike.me/NI73SY))
+- an account with [Kraken](https://kraken.app.link/f1qONfjA4tb) OR Strike (get $5 signup bonus to Strike if you use my referral code [https://invite.strike.me/NI73SY](https://invite.strike.me/NI73SY))
 - (in the future, will be adding NiceHash and others)
 
 ## Setup

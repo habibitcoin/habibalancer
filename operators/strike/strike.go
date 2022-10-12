@@ -14,6 +14,7 @@ import (
 
 	"github.com/habibitcoin/habibalancer/configs"
 	"github.com/habibitcoin/habibalancer/lightning"
+	"github.com/sqweek/dialog"
 )
 
 // Private Strike Endpoint and Methods.
@@ -232,7 +233,7 @@ func StrikeRepurchaser(ctx context.Context) (err error) {
 			quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
 			if quotedBTC >= buyBackAmountBTC {
 				if strikeRepurchaserManualMode == "true" {
-					// dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
+					dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
 				} else {
 					time.Sleep(1 * time.Second)
 					success, err := client.confirmExchange(createdQuote.QuoteId)

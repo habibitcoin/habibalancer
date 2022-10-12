@@ -2,6 +2,7 @@ package configs
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"os"
 
@@ -9,40 +10,46 @@ import (
 )
 
 type Config struct {
-	LNDHost          string
-	MacaroonLocation string
-	Macaroon         string
-	WebServer        string
+	LNDHost          string `form:"LNDHost"`
+	MacaroonLocation string `form:"MacaroonLocation"`
+	Macaroon         string `form:"Macaroon"`
+	WebServer        string `form:"WebServer"`
 
-	DeezyPeer              string
-	LoopSizeMinSat         string
-	LocalAmountMinSat      string
-	MaxLiqFeePpm           string
-	ExcludeDeezyFromLiqOps string
-	PayTimeoutSeconds      string
+	DeezyPeer              string `form:"DeezyPeer"`
+	LoopSizeMinSat         string `form:"LoopSizeMinSat"`
+	LocalAmountMinSat      string `form:"LocalAmountMinSat"`
+	MaxLiqFeePpm           string `form:"MaxLiqFeePpm"`
+	ExcludeDeezyFromLiqOps string `form:"ExcludeDeezyFromLiqOps"`
+	PayTimeoutSeconds      string `form:"PayTimeoutSeconds"`
 
-	KrakenEnabled        string
-	KrakenOpMinBtc       string
-	KrakenOpMaxBtc       string
-	KrakenWithdrawBtcMin string
-	KrakenUsername       string
-	KrakenPassword       string
-	KrakenOtpRequired    string
-	KrakenOtpSecret      string
-	KrakenApiKey         string
-	KrakenApiSecret      string
-	ChromeProfilePath    string
+	KrakenEnabled        string `form:"KrakenEnabled"`
+	KrakenOpMinBtc       string `form:"KrakenOpMinBtc"`
+	KrakenOpMaxBtc       string `form:"KrakenOpMaxBtc"`
+	KrakenWithdrawBtcMin string `form:"KrakenWithdrawBtcMin"`
+	KrakenUsername       string `form:"KrakenUsername"`
+	KrakenPassword       string `form:"KrakenPassword"`
+	KrakenOtpRequired    string `form:"KrakenOtpRequired"`
+	KrakenOtpSecret      string `form:"KrakenOtpSecret"`
+	KrakenApiKey         string `form:"KrakenApiKey"`
+	KrakenApiSecret      string `form:"KrakenApiSecret"`
+	ChromeProfilePath    string `form:"ChromeProfilePath"`
 
-	StrikeEnabled                   string
-	StrikeRepurchaserManualMode     string
-	StrikeOpMinBtc                  string
-	StrikeOpMaxBtc                  string
-	StrikeWithdrawBtcMin            string
-	StrikeDailyLimitBufferUsd       string
-	StrikeWeeklyLimitBufferUsd      string
-	StrikeRepurchaseCooldownSeconds string
-	StrikeApiKey                    string
-	StrikeJwtToken                  string
+	StrikeEnabled                   string `form:"StrikeEnabled"`
+	StrikeRepurchaserManualMode     string `form:"StrikeRepurchaserManualMode"`
+	StrikeOpMinBtc                  string `form:"StrikeOpMinBtc"`
+	StrikeOpMaxBtc                  string `form:"StrikeOpMaxBtc"`
+	StrikeWithdrawBtcMin            string `form:"StrikeWithdrawBtcMin"`
+	StrikeDailyLimitBufferUsd       string `form:"StrikeDailyLimitBufferUsd"`
+	StrikeWeeklyLimitBufferUsd      string `form:"StrikeWeeklyLimitBufferUsd"`
+	StrikeRepurchaseCooldownSeconds string `form:"StrikeRepurchaseCooldownSeconds"`
+	StrikeApiKey                    string `form:"StrikeApiKey"`
+	StrikeJwtToken                  string `form:"StrikeJwtToken"`
+}
+
+func (configs Config) GetConfigMap() (configMap map[string]string) {
+	inrec, _ := json.Marshal(configs)
+	json.Unmarshal(inrec, &configMap)
+	return configMap
 }
 
 func GetConfig(ctx context.Context) (configs Config) {
@@ -59,44 +66,41 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	log.Println("ok?")
-	log.Println(err)
-
 	configs := Config{
-		LNDHost:          os.Getenv("LND_HOST"),
-		MacaroonLocation: os.Getenv("MACAROON_LOCATION"),
-		Macaroon:         os.Getenv("MACAROON"),
-		WebServer:        os.Getenv("WEB_SERVER"),
+		LNDHost:          os.Getenv("LNDHost"),
+		MacaroonLocation: os.Getenv("MacaroonLocation"),
+		Macaroon:         os.Getenv("Macaroon"),
+		WebServer:        os.Getenv("WebServer"),
 
-		DeezyPeer:              os.Getenv("DEEZY_PEER"),
-		LoopSizeMinSat:         os.Getenv("LOOP_SIZE_MIN_SAT"),
-		LocalAmountMinSat:      os.Getenv("LOCAL_AMOUNT_MIN_SAT"),
-		MaxLiqFeePpm:           os.Getenv("MAX_LIQ_FEE_PPM"),
-		ExcludeDeezyFromLiqOps: os.Getenv("EXCLUDE_DEEZY_FROM_LIQ_OPS"),
-		PayTimeoutSeconds:      os.Getenv("PAY_TIMEOUT_SECONDS"),
+		DeezyPeer:              os.Getenv("DeezyPeer"),
+		LoopSizeMinSat:         os.Getenv("LoopSizeMinSat"),
+		LocalAmountMinSat:      os.Getenv("LocalAmountMinSat"),
+		MaxLiqFeePpm:           os.Getenv("MaxLiqFeePpm"),
+		ExcludeDeezyFromLiqOps: os.Getenv("ExcludeDeezyFromLiqOps"),
+		PayTimeoutSeconds:      os.Getenv("PayTimeoutSeconds"),
 
-		KrakenEnabled:        os.Getenv("KRAKEN_ENABLED"),
-		KrakenOpMinBtc:       os.Getenv("KRAKEN_OP_MIN_BTC"),
-		KrakenOpMaxBtc:       os.Getenv("KRAKEN_OP_MAX_BTC"),
-		KrakenWithdrawBtcMin: os.Getenv("KRAKEN_WITHDRAW_BTC_MIN"),
-		KrakenUsername:       os.Getenv("KRAKEN_USERNAME"),
-		KrakenPassword:       os.Getenv("KRAKEN_PASSWORD"),
-		KrakenOtpRequired:    os.Getenv("KRAKEN_OTP_REQUIRED"),
-		KrakenOtpSecret:      os.Getenv("KRAKEN_OTP_SECRET"),
-		KrakenApiKey:         os.Getenv("KRAKEN_API_KEY"),
-		KrakenApiSecret:      os.Getenv("KRAKEN_API_SECRET"),
-		ChromeProfilePath:    os.Getenv("CHROME_PROFILE_PATH"),
+		KrakenEnabled:        os.Getenv("KrakenEnabled"),
+		KrakenOpMinBtc:       os.Getenv("KrakenOpMinBtc"),
+		KrakenOpMaxBtc:       os.Getenv("KrakenOpMaxBtc"),
+		KrakenWithdrawBtcMin: os.Getenv("KrakenWithdrawBtcMin"),
+		KrakenUsername:       os.Getenv("KrakenUsername"),
+		KrakenPassword:       os.Getenv("KrakenPassword"),
+		KrakenOtpRequired:    os.Getenv("KrakenOtpRequired"),
+		KrakenOtpSecret:      os.Getenv("KrakenOtpSecret"),
+		KrakenApiKey:         os.Getenv("KrakenApiKey"),
+		KrakenApiSecret:      os.Getenv("KrakenApiSecret"),
+		ChromeProfilePath:    os.Getenv("ChromeProfilePath"),
 
-		StrikeEnabled:                   os.Getenv("STRIKE_ENABLED"),
-		StrikeRepurchaserManualMode:     os.Getenv("STRIKE_REPURCHASER_MANUAL_MODE"),
-		StrikeOpMinBtc:                  os.Getenv("STRIKE_OP_MIN_BTC"),
-		StrikeOpMaxBtc:                  os.Getenv("STRIKE_OP_MAX_BTC"),
-		StrikeWithdrawBtcMin:            os.Getenv("STRIKE_WITHDRAW_BTC_MIN"),
-		StrikeDailyLimitBufferUsd:       os.Getenv("STRIKE_DAILY_LIMIT_BUFFER_USD"),
-		StrikeWeeklyLimitBufferUsd:      os.Getenv("STRIKE_WEEKLY_LIMIT_BUFFER_USD"),
-		StrikeRepurchaseCooldownSeconds: os.Getenv("STRIKE_REPURCHASER_COOLDOWN_SECONDS"),
-		StrikeApiKey:                    os.Getenv("STRIKE_API_KEY"),
-		StrikeJwtToken:                  os.Getenv("STRIKE_JWT_TOKEN"),
+		StrikeEnabled:                   os.Getenv("StrikeEnabled"),
+		StrikeRepurchaserManualMode:     os.Getenv("StrikeRepurchaserManualMode"),
+		StrikeOpMinBtc:                  os.Getenv("StrikeOpMinBtc"),
+		StrikeOpMaxBtc:                  os.Getenv("StrikeOpMaxBtc"),
+		StrikeWithdrawBtcMin:            os.Getenv("StrikeWithdrawBtcMin"),
+		StrikeDailyLimitBufferUsd:       os.Getenv("StrikeDailyLimitBufferUsd"),
+		StrikeWeeklyLimitBufferUsd:      os.Getenv("StrikeWeeklyLimitBufferUsd"),
+		StrikeRepurchaseCooldownSeconds: os.Getenv("StrikeRepurchaseCooldownSeconds"),
+		StrikeApiKey:                    os.Getenv("StrikeApiKey"),
+		StrikeJwtToken:                  os.Getenv("StrikeJwtToken"),
 	}
 
 	ctx = context.WithValue(ctx, "configs", configs)

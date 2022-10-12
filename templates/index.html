@@ -1,0 +1,70 @@
+
+{{define "body"}}
+<section class="ftco-section ftco-section-2">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-9 text-center">
+                <h2 class="heading-section mb-4 pb-md-3">
+                    Welcome!
+                </h2>
+                <p>This application is a tool to automate liquidity operations to earn fees from Deezy.io. Huge shoutout to @dannydiekroeger! Deezy.io operates a service where if you open a channel to Deezy, and move liquidity to Deezy's side, he'll pay you ~1000 ppm (variable) when you close your channel.
+                    <br><br><i>
+                        Routing payments on the lightning network can earn you a sustainable low-risk yield on your bitcoin, but it is hard to get meaningful earnings if you’re not a large routing node… until now.
+
+                        This guide will walk you through how to generate reliable earnings by using the earning features that the Deezy Node offers.
+                    </i><br>
+                    Read more at <a href="https://dannydeezy.notion.site/How-to-Earn-on-the-Lightning-Network-62c9ebee3403487bbbd936d75d59d6fc" target="_blank">https://dannydeezy.notion.site/How-to-Earn-on-the-Lightning-Network-62c9ebee3403487bbbd936d75d59d6fc</a>.
+                    <br><br>Fill out the configurations below, and ensure you've funded your wallet.<br><br>
+                You will need at least the following:</p>
+                <div style="text-align:left;">
+                <ul>
+                    <li>API access to an LND node you control <a href="https://dannydeezy.notion.site/How-to-Earn-on-the-Lightning-Network-62c9ebee3403487bbbd936d75d59d6fc" target="_blank">(Easy with Voltage.io!)</a></li>
+                    <li>Either a <a target="_blank" href="https://kraken.app.link/f1qONfjA4tb">Kraken</a> account or a <a target="_blank" href="https://invite.strike.me/NI73SY">Strike</a> account (get $5 signup bonus to Strike if you use my referral code <a target="_blank" href="https://invite.strike.me/NI73SY">https://invite.strike.me/NI73SY</a>)</li>
+                </ul>
+            </div>
+                <br><br>
+                <table border = "0" style="width:100%;overflow:auto;display:flex;justify-content:center;">
+                <tbody>
+                    <tr>
+                        <td><b>Onchain Balance:</b></td>
+                        <td>{{.balance}}</td>
+                    </tr>
+                    <tr>
+                        <td><b>Deposit Address:</b></td>
+                        <td>{{.address}}</td>
+                    </tr>
+                </tbody>
+                </table>
+                <br><h5>Do your configs look good? If so, lets start!</h5><form action="/begin"><button type="submit">Start Earning</button></form>
+            </div>
+        </div>
+    </div>
+</section>
+
+  <section class="ftco-section" id="messages">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <h2 class="heading-section mb-4">Configs</h2>
+                    <form action="/" method="post">
+                    <table border="1" style = "width: 100%; overflow:auto; display: flex;">
+                            <tbody>
+                            <tr>
+                            <td><b>config</b></td>
+                            <td><b>value</b></td>
+                            </tr>
+                            {{range $key, $value := .configMap}}
+                            <tr>
+                            <td>{{ $key}}</td>
+                            <td ><input type="text" id="{{ $key}}" name="{{ $key}}" value ="{{ $value}}" style = "width: 800px;"></td>
+                            </tr>
+                            {{end}}
+                            </tbody>
+                            </table>
+                    <input type="submit" value="Save Configs">
+                    </form>
+                </div>
+            </div>
+        </div>
+  </section>
+{{end}}

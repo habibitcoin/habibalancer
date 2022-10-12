@@ -2,16 +2,19 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
+	"text/template"
 	"time"
 
 	"github.com/habibitcoin/habibalancer/configs"
 	"github.com/habibitcoin/habibalancer/deezy"
+	"github.com/habibitcoin/habibalancer/handler"
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
 	"github.com/habibitcoin/habibalancer/operators/strike"
@@ -24,7 +27,7 @@ func main() {
 	ctx := context.Background()
 	ctx, err := configs.LoadConfig(ctx)
 	if err != nil {
-		log.Println("You need to create a .env file or use the web browser helper")
+		log.Println("You need to create a .env file or use the web browser helper at localhost:1323")
 		webServer = "true"
 	} else {
 		webServer = configs.GetConfig(ctx).WebServer
@@ -34,24 +37,33 @@ func main() {
 		// Echo instance
 		e := echo.New()
 
+		templates := make(map[string]*template.Template)
+		templates["index.html"] = template.Must(template.ParseFiles("templates/index.html", "templates/base.html"))
+		e.Renderer = &TemplateRegistry{
+			templates: templates,
+		}
+
 		// Middleware
 		e.Use(middleware.Logger())
 		e.Use(middleware.Recover())
-		// Route => handler
-		e.GET("/", func(c echo.Context) error {
-			configJson, _ := json.MarshalIndent(configs.GetConfig(ctx), "", "\t")
-			return c.String(http.StatusOK, "Visit /begin to start looping!\n\nDo you configurations look correct below?\n"+string(configJson))
-		})
-		e.GET("/begin", func(c echo.Context) error {
-			looper(ctx)
-			return c.String(http.StatusOK, "Looping started!\n")
-		})
 
-		// err := http.ListenAndServe(":9090", http.FileServer(http.Dir("docs")))
-		if err != nil {
-			fmt.Println("Failed to start server", err)
-			return
+		// Initialize handler
+		h := &handler.Handler{
+			Context: ctx,
+			Config:  configs.GetConfig(ctx),
 		}
+
+		// Route => handler
+		e.GET("/", h.Index)
+		e.POST("/", h.SaveConfig)
+		e.GET("/begin", func(c echo.Context) error {
+			// refresh context and configs
+			h.Context = context.WithValue(h.Context, "configs", h.Config)
+			go looper(h.Context)
+			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
+		})
+		e.Static("/static", "static")
+		e.File("/favicon.ico", "static/images/favicon.ico")
 
 		// Start server
 		e.Logger.Fatal(e.Start(":1323"))
@@ -229,4 +241,19 @@ func looper(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+// Define the template registry struct
+type TemplateRegistry struct {
+	templates map[string]*template.Template
+}
+
+// Implement e.Renderer interface
+func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	tmpl, ok := t.templates[name]
+	if !ok {
+		err := errors.New("Template not found -> " + name)
+		return err
+	}
+	return tmpl.ExecuteTemplate(w, "base.html", data)
 }
