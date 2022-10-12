@@ -2,29 +2,74 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
-	"os"
+	"net/http"
 	"strconv"
+	"text/template"
 	"time"
 
 	"github.com/habibitcoin/habibalancer/configs"
 	"github.com/habibitcoin/habibalancer/deezy"
+	"github.com/habibitcoin/habibalancer/handler"
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
 	"github.com/habibitcoin/habibalancer/operators/strike"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
-var ()
-
 func main() {
+	var webServer string
 	ctx := context.Background()
 	ctx, err := configs.LoadConfig(ctx)
 	if err != nil {
-		os.Exit(1)
+		log.Println("You need to create a .env file or use the web browser helper at localhost:1323")
+		webServer = "true"
+	} else {
+		webServer = configs.GetConfig(ctx).WebServer
 	}
-	looper(ctx)
+
+	if webServer == "true" {
+		// Echo instance
+		e := echo.New()
+
+		templates := make(map[string]*template.Template)
+		templates["index.html"] = template.Must(template.ParseFiles("templates/index.html", "templates/base.html"))
+		e.Renderer = &TemplateRegistry{
+			templates: templates,
+		}
+
+		// Middleware
+		e.Use(middleware.Logger())
+		e.Use(middleware.Recover())
+
+		// Initialize handler
+		h := &handler.Handler{
+			Context: ctx,
+			Config:  configs.GetConfig(ctx),
+		}
+
+		// Route => handler
+		e.GET("/", h.Index)
+		e.POST("/", h.SaveConfig)
+		e.GET("/begin", func(c echo.Context) error {
+			// refresh context and configs
+			h.Context = context.WithValue(h.Context, "configs", h.Config)
+			go looper(h.Context)
+			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
+		})
+		e.Static("/static", "static")
+		e.File("/favicon.ico", "static/images/favicon.ico")
+
+		// Start server
+		e.Logger.Fatal(e.Start(":1323"))
+	} else {
+		looper(ctx)
+	}
 }
 
 func looper(ctx context.Context) (err error) {
@@ -196,4 +241,19 @@ func looper(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+// Define the template registry struct
+type TemplateRegistry struct {
+	templates map[string]*template.Template
+}
+
+// Implement e.Renderer interface
+func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	tmpl, ok := t.templates[name]
+	if !ok {
+		err := errors.New("Template not found -> " + name)
+		return err
+	}
+	return tmpl.ExecuteTemplate(w, "base.html", data)
 }

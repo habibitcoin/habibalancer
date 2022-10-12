@@ -93,6 +93,10 @@ func (client KrakenClient) GetAddress(amount string) (invoice string) {
 		password          = config.KrakenPassword
 		otpSecret         = config.KrakenOtpSecret
 	)
+
+	if config.ChromeProfilePath == "default" {
+		config.ChromeProfilePath = ""
+	}
 	// create chrome instance
 	ctx, cancel := chromedp.NewExecAllocator(
 		context.Background(),

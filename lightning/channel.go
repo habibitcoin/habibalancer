@@ -57,8 +57,10 @@ func (client *LightningClient) ListChannels(peer string) (channels ChannelsRespo
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		log.Println(err)
 		return channels, err
 	}
+
 	channels = ChannelsResponse{}
 	if err := json.Unmarshal(bodyBytes, &channels); err != nil {
 		log.Println(err)

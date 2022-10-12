@@ -68,7 +68,7 @@ func loadMacaroon(ctx context.Context) (macaroon string) {
 }
 
 func (client *LightningClient) sendGetRequest(endpoint string) (*http.Response, error) {
-
+	log.Println(client.Host + endpoint)
 	req, err := http.NewRequest("GET", client.Host+endpoint, nil)
 	if err != nil {
 		return nil, err
