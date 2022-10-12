@@ -12,6 +12,7 @@ type Config struct {
 	LNDHost          string
 	MacaroonLocation string
 	Macaroon         string
+	WebServer        string
 
 	DeezyPeer              string
 	LoopSizeMinSat         string
@@ -49,16 +50,23 @@ func GetConfig(ctx context.Context) (configs Config) {
 }
 
 func LoadConfig(ctx context.Context) (context.Context, error) {
-	err := godotenv.Load(".env")
+	var err error
+	err = godotenv.Load(".env")
 	if err != nil {
-		log.Fatalf("Error loading .env file")
-		return ctx, err
+		log.Printf("Error loading .env file, falling back to .env.sample: %v", err)
+		if fatalErr := godotenv.Load(".env.sample"); fatalErr != nil {
+			log.Fatalf(fatalErr.Error())
+		}
 	}
+
+	log.Println("ok?")
+	log.Println(err)
 
 	configs := Config{
 		LNDHost:          os.Getenv("LND_HOST"),
 		MacaroonLocation: os.Getenv("MACAROON_LOCATION"),
 		Macaroon:         os.Getenv("MACAROON"),
+		WebServer:        os.Getenv("WEB_SERVER"),
 
 		DeezyPeer:              os.Getenv("DEEZY_PEER"),
 		LoopSizeMinSat:         os.Getenv("LOOP_SIZE_MIN_SAT"),
@@ -93,7 +101,7 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 
 	ctx = context.WithValue(ctx, "configs", configs)
 
-	return ctx, nil
+	return ctx, err
 }
 
 // use godot package to load/read the .env file and

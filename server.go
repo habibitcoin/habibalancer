@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -14,17 +15,43 @@ import (
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
 	"github.com/habibitcoin/habibalancer/operators/strike"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
-var ()
-
 func main() {
+	var webServer string
 	ctx := context.Background()
 	ctx, err := configs.LoadConfig(ctx)
 	if err != nil {
-		os.Exit(1)
+		log.Println("You need to create a .env file or use the web browser helper")
+		webServer = "true"
+	} else {
+		webServer = configs.GetConfig(ctx).WebServer
 	}
-	looper(ctx)
+
+	if webServer == "true" {
+		// Echo instance
+		e := echo.New()
+
+		// Middleware
+		e.Use(middleware.Logger())
+		e.Use(middleware.Recover())
+		// Route => handler
+		e.GET("/", func(c echo.Context) error {
+			configJson, _ := json.MarshalIndent(configs.GetConfig(ctx), "", "\t")
+			return c.String(http.StatusOK, "Visit /begin to start looping!\n\nDo you configurations look correct below?\n"+string(configJson))
+		})
+		e.GET("/begin", func(c echo.Context) error {
+			looper(ctx)
+			return c.String(http.StatusOK, "Looping started!\n")
+		})
+
+		// Start server
+		e.Logger.Fatal(e.Start(":1323"))
+	} else {
+		looper(ctx)
+	}
 }
 
 func looper(ctx context.Context) (err error) {
