@@ -17,7 +17,12 @@ You will need:
 - (in the future, will be adding NiceHash and others)
 
 ## Setup
-You'll want to edit the values in .env.sample and rename the file to .env
+Easy Setup: download one of the binaries, run the file, and visit localhost:1323 to get started!
 
-If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
+Advanced Setup: If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
+
+## What It Looks Like
+Once you get running, you can update/save your configurations, and hit "Start Earning" when you are ready to start.
+
+![image](https://user-images.githubusercontent.com/114780316/195450982-0f3a4e8a-e7f8-4b31-b4ea-0ccbcb89b9c3.png)
 
