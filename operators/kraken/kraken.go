@@ -19,17 +19,31 @@ import (
 	"github.com/chromedp/cdproto/runtime"
 	"github.com/chromedp/chromedp"
 	"github.com/chromedp/chromedp/kb"
-	"github.com/joho/godotenv"
+	"github.com/habibitcoin/habibalancer/configs"
 )
 
-var (
-	api = krakenapi.New(GoDotEnvVariable("KRAKEN_API_KEY"), GoDotEnvVariable("KRAKEN_API_SECRET"))
+type KrakenClient struct {
+	Client    *krakenapi.KrakenAPI
+	ApiKey    string
+	ApiSecret string
+	Context   context.Context
+}
 
-	krakenWithdrawAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_WITHDRAW_BTC_MIN"), 64)
-)
+// func NewClient
+func NewClient(ctx context.Context) (client KrakenClient) {
+	config := configs.GetConfig(ctx)
+	client = KrakenClient{
+		Client:    krakenapi.New(config.KrakenApiKey, config.KrakenApiSecret),
+		ApiKey:    config.KrakenApiKey,
+		ApiSecret: config.KrakenApiSecret,
+		Context:   ctx,
+	}
 
-func GetBalance() (string, error) {
-	result, err := api.Query("Balance", map[string]string{})
+	return client
+}
+
+func (client KrakenClient) GetBalance() (string, error) {
+	result, err := client.Client.Query("Balance", map[string]string{})
 	if err != nil {
 		log.Println("Unexpected error fetching Kraken balance: ", err)
 		return "", err
@@ -38,8 +52,10 @@ func GetBalance() (string, error) {
 	return fmt.Sprint(res["XXBT"]), nil
 }
 
-func Withdraw() (interface{}, error) {
-	krakenBalanceStringXBT, err := GetBalance()
+func (client KrakenClient) Withdraw() (interface{}, error) {
+	krakenWithdrawAmtXBTmin, _ := strconv.ParseFloat(configs.GetConfig(client.Context).KrakenWithdrawBtcMin, 64)
+
+	krakenBalanceStringXBT, err := client.GetBalance()
 	if err != nil {
 		log.Println("Error fetching Kraken balance")
 		log.Println(err)
@@ -50,7 +66,7 @@ func Withdraw() (interface{}, error) {
 	krakenBalanceFloatXBT, _ := strconv.ParseFloat(krakenBalanceStringXBT, 64)
 
 	if krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
-		result, err := api.Query("Withdraw", map[string]string{
+		result, err := client.Client.Query("Withdraw", map[string]string{
 			"asset":  "xbt",
 			"key":    "umbrel",
 			"amount": krakenBalanceStringXBT,
@@ -68,14 +84,22 @@ func Withdraw() (interface{}, error) {
 
 // Receives an amount defined in BTC, returns an invoice
 // NOTE: The first time you run this, you need.
-func GetAddress(amount string) (invoice string) {
+func (client KrakenClient) GetAddress(amount string) (invoice string) {
+	var (
+		config            = configs.GetConfig(client.Context)
+		chromeProfilePath = config.ChromeProfilePath
+		krakenOtpRequired = config.KrakenOtpRequired
+		username          = config.KrakenUsername
+		password          = config.KrakenPassword
+		otpSecret         = config.KrakenOtpSecret
+	)
 	// create chrome instance
 	ctx, cancel := chromedp.NewExecAllocator(
 		context.Background(),
 		append(chromedp.DefaultExecAllocatorOptions[:],
 			chromedp.WindowSize(25, 25),
 			chromedp.Flag("headless", false), // Sorry, doesn't work headless
-			chromedp.UserDataDir(GoDotEnvVariable("CHROME_PROFILE_PATH")))...)
+			chromedp.UserDataDir(chromeProfilePath))...)
 	defer cancel()
 	ctx, cancel = chromedp.NewContext(
 		ctx,
@@ -100,30 +124,51 @@ func GetAddress(amount string) (invoice string) {
 	}
 
 	if location != "https://www.kraken.com/u/funding/deposit?asset=BTC&method=1" {
-		log.Println(location)
-		// login is required
-		err = chromedp.Run(ctx,
-			// wait for footer element is visible (ie, page is loaded)
-			chromedp.WaitVisible(`//input[@name="username"]`),
-			chromedp.SendKeys(`//input[@name="username"]`, GoDotEnvVariable("KRAKEN_USERNAME")),
-			chromedp.WaitVisible(`//input[@name="password"]`),
-			chromedp.SendKeys(`//input[@name="password"]`, GoDotEnvVariable("KRAKEN_PASSWORD")),
-			chromedp.Sleep(3*time.Second),
-			chromedp.SendKeys(`//input[@name="password"]`, kb.Enter),
-			// find and click body > reach-portal:nth-child(37) > div:nth-child(3) > div > div > div > div > div.tr.mt3 > button.Button_button__caA8R.Button_primary__c5lrD.Button_large__T4YrY.no-tab-highlight
-			chromedp.Sleep(3*time.Second),
-			chromedp.SendKeys(`//input[@name="tfa"]`, getHOTPToken(GoDotEnvVariable("KRAKEN_OTP_SECRET"))),
-			chromedp.Sleep(1*time.Second),
-			chromedp.SendKeys(`//input[@name="tfa"]`, kb.Enter),
-			chromedp.Sleep(3*time.Second),
-			chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`),
-			chromedp.Sleep(3*time.Second),
-			chromedp.Location(&location),
-			// GO CONFIRM YOUR DEVICE VIA EMAIL, COMMENT THIS OUT AGAIN AND RESTART SCRIPT
-		)
-		if err != nil {
-			log.Println(err)
-			return ""
+		if krakenOtpRequired == "true" {
+			log.Println(location)
+			// login is required
+			err = chromedp.Run(ctx,
+				// wait for footer element is visible (ie, page is loaded)
+				chromedp.WaitVisible(`//input[@name="username"]`),
+				chromedp.SendKeys(`//input[@name="username"]`, username),
+				chromedp.WaitVisible(`//input[@name="password"]`),
+				chromedp.SendKeys(`//input[@name="password"]`, password),
+				chromedp.Sleep(3*time.Second),
+				chromedp.SendKeys(`//input[@name="password"]`, kb.Enter),
+				// find and click body > reach-portal:nth-child(37) > div:nth-child(3) > div > div > div > div > div.tr.mt3 > button.Button_button__caA8R.Button_primary__c5lrD.Button_large__T4YrY.no-tab-highlight
+				chromedp.Sleep(3*time.Second),
+				chromedp.SendKeys(`//input[@name="tfa"]`, getHOTPToken(otpSecret)),
+				chromedp.Sleep(1*time.Second),
+				chromedp.SendKeys(`//input[@name="tfa"]`, kb.Enter),
+				chromedp.Sleep(3*time.Second),
+				chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`),
+				chromedp.Sleep(3*time.Second),
+				chromedp.Location(&location),
+			)
+			if err != nil {
+				log.Println(err)
+				return ""
+			}
+		} else {
+			log.Println(location)
+			err = chromedp.Run(ctx,
+				// wait for footer element is visible (ie, page is loaded)
+				chromedp.WaitVisible(`//input[@name="username"]`),
+				chromedp.SendKeys(`//input[@name="username"]`, username),
+				chromedp.WaitVisible(`//input[@name="password"]`),
+				chromedp.SendKeys(`//input[@name="password"]`, password),
+				chromedp.Sleep(3*time.Second),
+				chromedp.SendKeys(`//input[@name="password"]`, kb.Enter),
+				// find and click body > reach-portal:nth-child(37) > div:nth-child(3) > div > div > div > div > div.tr.mt3 > button.Button_button__caA8R.Button_primary__c5lrD.Button_large__T4YrY.no-tab-highlight
+				chromedp.Sleep(3*time.Second),
+				chromedp.Navigate(`https://www.kraken.com/u/funding/deposit?asset=BTC&method=1`),
+				chromedp.Sleep(3*time.Second),
+				chromedp.Location(&location),
+			)
+			if err != nil {
+				log.Println(err)
+				return ""
+			}
 		}
 	}
 
@@ -151,18 +196,6 @@ func GetAddress(amount string) (invoice string) {
 		return ""
 	}
 	return invoice
-}
-
-// use godot package to load/read the .env file and
-// return the value of the key.
-func GoDotEnvVariable(key string) string {
-	// load .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-
-	return os.Getenv(key)
 }
 
 func getHOTPToken(secret string) string {

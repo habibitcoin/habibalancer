@@ -22,8 +22,8 @@ type itemResponse struct {
 
 // Receives an amount defined in BTC, returns an invoice
 // NOTE: The first time you run this, you need.
-func getHistory() (history historyResponse, err error) {
-	resp, err := sendGetRequest(historyEndpoint)
+func (client StrikeClient) getHistory() (history historyResponse, err error) {
+	resp, err := client.sendGetRequest(historyEndpoint)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

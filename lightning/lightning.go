@@ -3,6 +3,7 @@ package lightning
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -10,19 +11,37 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/joho/godotenv"
+	"github.com/habibitcoin/habibalancer/configs"
 )
 
-// Set admin.macaroon hex.
-var (
-	Macaroon = ""
-	LNUrl    = GoDotEnvVariable("LND_HOST")
-)
+type LightningClient struct {
+	Client   *http.Client
+	Host     string
+	Macaroon string
+	Context  context.Context
+}
 
-func loadMacaroon() (macaroon string) {
-	file, err := os.Open(GoDotEnvVariable("MACAROON_LOCATION"))
+// func NewLightningClient
+func NewClient(ctx context.Context) (client LightningClient) {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	httpClient := &http.Client{
+		Transport: tr,
+	}
+	client = LightningClient{
+		Client:   httpClient,
+		Host:     configs.GetConfig(ctx).LNDHost,
+		Macaroon: loadMacaroon(ctx),
+	}
+
+	return client
+}
+
+func loadMacaroon(ctx context.Context) (macaroon string) {
+	file, err := os.Open(configs.GetConfig(ctx).MacaroonLocation)
 	if err != nil {
-		return GoDotEnvVariable("MACAROON")
+		return configs.GetConfig(ctx).Macaroon
 	}
 
 	defer file.Close()
@@ -48,22 +67,15 @@ func loadMacaroon() (macaroon string) {
 	return finalResult[0]
 }
 
-func sendGetRequest(endpoint string) (*http.Response, error) {
-	myMacaroon := loadMacaroon()
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-	}
+func (client *LightningClient) sendGetRequest(endpoint string) (*http.Response, error) {
 
-	req, err := http.NewRequest("GET", LNUrl+endpoint, nil)
+	req, err := http.NewRequest("GET", client.Host+endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Add("Grpc-Metadata-macaroon", myMacaroon)
-	resp, err := client.Do(req)
+	req.Header.Add("Grpc-Metadata-macaroon", client.Macaroon)
+	resp, err := client.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -71,25 +83,17 @@ func sendGetRequest(endpoint string) (*http.Response, error) {
 	return resp, err
 }
 
-func sendPostRequestJSON(endpoint string, payload interface{}) (*http.Response, error) {
-	myMacaroon := loadMacaroon()
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-	}
-
+func (client *LightningClient) sendPostRequestJSON(endpoint string, payload interface{}) (*http.Response, error) {
 	jsonStr, err := json.Marshal(payload)
 
-	req, err := http.NewRequest("POST", LNUrl+endpoint, bytes.NewBuffer(jsonStr))
+	req, err := http.NewRequest("POST", client.Host+endpoint, bytes.NewBuffer(jsonStr))
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Add("Grpc-Metadata-macaroon", myMacaroon)
+	req.Header.Add("Grpc-Metadata-macaroon", client.Macaroon)
 	req.Header.Add("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := client.Client.Do(req)
 	if err != nil {
 		log.Println(err)
 		return nil, err
@@ -98,40 +102,20 @@ func sendPostRequestJSON(endpoint string, payload interface{}) (*http.Response, 
 	return resp, nil
 }
 
-func sendPostRequest(endpoint string, payload string) (*http.Response, error) {
-	myMacaroon := loadMacaroon()
-	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{
-		Transport: tr,
-	}
-
+func (client *LightningClient) sendPostRequest(endpoint string, payload string) (*http.Response, error) {
 	jsonStr := []byte(payload)
 
-	req, err := http.NewRequest("POST", LNUrl+endpoint, bytes.NewBuffer(jsonStr))
+	req, err := http.NewRequest("POST", client.Host+endpoint, bytes.NewBuffer(jsonStr))
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Add("Grpc-Metadata-macaroon", myMacaroon)
+	req.Header.Add("Grpc-Metadata-macaroon", client.Macaroon)
 	req.Header.Add("Content-Type", "application/json")
-	resp, err := client.Do(req)
+	resp, err := client.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	return resp, nil
-}
-
-// use godot package to load/read the .env file and
-// return the value of the key.
-func GoDotEnvVariable(key string) string {
-	// load .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-
-	return os.Getenv(key)
 }

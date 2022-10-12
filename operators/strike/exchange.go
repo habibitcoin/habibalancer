@@ -33,11 +33,11 @@ type exchangeQuoteResponse struct {
 }
 
 // Receives an amount defined in USD, returns a quote.
-func exchange(sourceAmount string, sourceCurrency string, targetCurrency string) (quote exchangeResponse, err error) {
+func (client StrikeClient) exchange(sourceAmount string, sourceCurrency string, targetCurrency string) (quote exchangeResponse, err error) {
 	var amount amountType
 	amount.Currency = sourceCurrency
 	amount.Amount = sourceAmount
-	resp, err := sendPostRequest(exchangeEndpoint, &exchangePayload{
+	resp, err := client.sendPostRequest(exchangeEndpoint, &exchangePayload{
 		Type:           "SELL",
 		TargetCurrency: targetCurrency,
 		SourceAmount:   amount,
@@ -57,10 +57,10 @@ func exchange(sourceAmount string, sourceCurrency string, targetCurrency string)
 	return quote, nil
 }
 
-func confirmExchange(quoteId string) (success bool, err error) {
+func (client StrikeClient) confirmExchange(quoteId string) (success bool, err error) {
 	var quoteResponse exchangeQuoteResponse
 	endpoint := strings.Replace(confirmExchangeEndpoint, ":quoteId", quoteId, 1)
-	resp, err := sendPostRequest(endpoint, nil)
+	resp, err := client.sendPostRequest(endpoint, nil)
 	if err != nil {
 		log.Println(err)
 		return false, err

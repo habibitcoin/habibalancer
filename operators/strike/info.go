@@ -27,8 +27,8 @@ type balancesAndLimitsResponse struct {
 	Limits   []limitType   `json:"limits"`
 }
 
-func GetBalanceAndLimits() (balancesAndLimits balancesAndLimitsResponse, err error) {
-	resp, err := sendGetRequest(balancesAndLimitsEndpoint)
+func (client StrikeClient) GetBalanceAndLimits() (balancesAndLimits balancesAndLimitsResponse, err error) {
+	resp, err := client.sendGetRequest(balancesAndLimitsEndpoint)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
