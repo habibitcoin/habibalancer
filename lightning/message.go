@@ -10,9 +10,9 @@ type MessageResponse struct {
 	Signature string `json:"signature"`
 }
 
-func SignMessage(message string) (signature MessageResponse, err error) {
+func (client *LightningClient) SignMessage(message string) (signature MessageResponse, err error) {
 	messageUrl := base64.URLEncoding.EncodeToString([]byte(message))
-	resp, err := sendPostRequest("v1/signmessage", `{"msg":"`+messageUrl+`"}`)
+	resp, err := client.sendPostRequest("v1/signmessage", `{"msg":"`+messageUrl+`"}`)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

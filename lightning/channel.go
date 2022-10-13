@@ -9,11 +9,11 @@ import (
 	"strconv"
 )
 
-func CreateChannel(peer string, amount int) (string, error) {
+func (client *LightningClient) CreateChannel(peer string, amount int) (string, error) {
 	peerHex, _ := hex.DecodeString(peer)
 	peerUrl := base64.URLEncoding.EncodeToString(peerHex)
 
-	resp, err := sendPostRequest("v1/channels", `{"node_pubkey":"`+peerUrl+`","sat_per_vbyte":"1","spend_unconfirmed":true,"private":false,"local_funding_amount":"`+strconv.Itoa(amount)+`"}`)
+	resp, err := client.sendPostRequest("v1/channels", `{"node_pubkey":"`+peerUrl+`","sat_per_vbyte":"1","spend_unconfirmed":true,"private":false,"local_funding_amount":"`+strconv.Itoa(amount)+`"}`)
 	if err != nil {
 		log.Println(err)
 		return "", err
@@ -41,7 +41,7 @@ type ChannelResponse struct {
 	RemoteBalance string `json:"remote_balance"`
 }
 
-func ListChannels(peer string) (channels ChannelsResponse, err error) {
+func (client *LightningClient) ListChannels(peer string) (channels ChannelsResponse, err error) {
 	peerHex, _ := hex.DecodeString(peer)
 	peerUrl := base64.URLEncoding.EncodeToString(peerHex)
 	prefix := ""
@@ -49,7 +49,7 @@ func ListChannels(peer string) (channels ChannelsResponse, err error) {
 		prefix = "?peer="
 	}
 
-	resp, err := sendGetRequest("v1/channels" + prefix + peerUrl)
+	resp, err := client.sendGetRequest("v1/channels" + prefix + peerUrl)
 	if err != nil {
 		log.Println(err)
 		return channels, err
@@ -57,8 +57,10 @@ func ListChannels(peer string) (channels ChannelsResponse, err error) {
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		log.Println(err)
 		return channels, err
 	}
+
 	channels = ChannelsResponse{}
 	if err := json.Unmarshal(bodyBytes, &channels); err != nil {
 		log.Println(err)
@@ -66,4 +68,14 @@ func ListChannels(peer string) (channels ChannelsResponse, err error) {
 	}
 
 	return channels, err
+}
+
+func (client *LightningClient) IsChannelOpen(peer string) (status bool) {
+	ChannelExists, err := client.ListChannels(peer)
+	if err != nil {
+		log.Printf("Error listing channels in IsChannelOpen: %v", err)
+		return false
+	}
+
+	return len(ChannelExists.Channels) != 0
 }

@@ -33,11 +33,11 @@ type InvoiceQuoteResponse struct {
 	Rate           rateType   `json:"conversionRate"`
 }
 
-func getInvoice(description string, USDamount string) (invoice InvoiceResponse, err error) {
+func (client StrikeClient) getInvoice(description string, USDamount string) (invoice InvoiceResponse, err error) {
 	var amount amountType
 	amount.Currency = "USD"
 	amount.Amount = USDamount
-	resp, err := sendPostRequest(invoicesEndpoint, &InvoicePayload{
+	resp, err := client.sendPostRequest(invoicesEndpoint, &InvoicePayload{
 		CorrelationId: uuid.New().String(),
 		Description:   description,
 		Amount:        amount,
@@ -52,9 +52,9 @@ func getInvoice(description string, USDamount string) (invoice InvoiceResponse, 
 	return invoice, err
 }
 
-func getInvoiceQuote(quoteId string) (invoice InvoiceQuoteResponse, err error) {
+func (client StrikeClient) getInvoiceQuote(quoteId string) (invoice InvoiceQuoteResponse, err error) {
 	endpoint := strings.Replace(quoteInvoiceEndpoint, ":quoteId", quoteId, 1)
-	resp, err := sendPostRequest(endpoint, nil)
+	resp, err := client.sendPostRequest(endpoint, nil)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -73,8 +73,8 @@ type rateType struct {
 
 type RatesResponse []rateType
 
-func getRates() (rates RatesResponse, err error) {
-	resp, err := sendGetRequest(ratesEndpoint)
+func (client StrikeClient) getRates() (rates RatesResponse, err error) {
+	resp, err := client.sendGetRequest(ratesEndpoint)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {

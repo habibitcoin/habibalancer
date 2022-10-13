@@ -12,8 +12,8 @@ type BalanceResponse struct {
 	UnconfirmedBalance string `json:"unconfirmed_balance"`
 }
 
-func GetBalance() (balances BalanceResponse, err error) {
-	resp, err := sendGetRequest("v1/balance/blockchain")
+func (client *LightningClient) GetBalance() (balances BalanceResponse, err error) {
+	resp, err := client.sendGetRequest("v1/balance/blockchain")
 	if err != nil {
 		log.Println(err)
 		return balances, err

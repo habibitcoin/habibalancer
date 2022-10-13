@@ -37,10 +37,10 @@ type InvoiceListResponse struct {
 	Invoices []InvoiceResponse `json:"invoices"`
 }
 
-func CreateInvoice(amount string) (string, error) {
+func (client *LightningClient) CreateInvoice(amount string) (string, error) {
 	log.Println(amount)
 
-	resp, err := sendPostRequest("v1/invoices", `{"value":"`+amount+`","memo":"`+amount+`"}`)
+	resp, err := client.sendPostRequest("v1/invoices", `{"value":"`+amount+`","memo":"`+amount+`"}`)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -52,7 +52,7 @@ func CreateInvoice(amount string) (string, error) {
 	return bodyString, err
 }
 
-func GetInvoicePaid(invoice InvoiceResponse) (bool, error) {
+func (client *LightningClient) GetInvoicePaid(invoice InvoiceResponse) (bool, error) {
 	var (
 		invoiceValid   = false
 		invoicePending = false
@@ -60,7 +60,7 @@ func GetInvoicePaid(invoice InvoiceResponse) (bool, error) {
 	)
 
 	// First see if invoice exists
-	resp, err := sendGetRequest("v1/invoices")
+	resp, err := client.sendGetRequest("v1/invoices")
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return false, err
@@ -75,7 +75,7 @@ func GetInvoicePaid(invoice InvoiceResponse) (bool, error) {
 		}
 	}
 
-	resp, err = sendGetRequest("v1/invoices?pending_only=true")
+	resp, err = client.sendGetRequest("v1/invoices?pending_only=true")
 	bodyBytes, err = ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return false, err

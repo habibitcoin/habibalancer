@@ -13,12 +13,18 @@ The application utilizes the LND REST API, and Chrome Driver to automate Kraken'
 ## Requirements
 You will need:
 - an LND node that you have REST access to
-- a machine with Go 1.18 or higher installed
-- an account with Kraken OR Strike (get $5 signup bonus to Strike if you use my referral code [https://invite.strike.me/NI73SY](https://invite.strike.me/NI73SY))
+- an account with [Kraken](https://kraken.app.link/f1qONfjA4tb) OR Strike (get $5 signup bonus to Strike if you use my referral code [https://invite.strike.me/NI73SY](https://invite.strike.me/NI73SY))
 - (in the future, will be adding NiceHash and others)
 
 ## Setup
-You'll want to edit the values in .env.sample and rename the file to .env
+Easy Setup: download one of the binaries, run the file, and visit localhost:1323 to get started! Watch the video below.
+[![Watch the video](https://i.imgur.com/YX7uPMi.png)](https://www.youtube.com/watch?v=5jpLN6EskDw)
 
-If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
+
+Advanced Setup: If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
+
+## What It Looks Like
+Once you get running, you can update/save your configurations, and hit "Start Earning" when you are ready to start.
+
+![image](https://user-images.githubusercontent.com/114780316/195450982-0f3a4e8a-e7f8-4b31-b4ea-0ccbcb89b9c3.png)
 

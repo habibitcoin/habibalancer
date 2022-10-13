@@ -10,8 +10,8 @@ type AddressResponse struct {
 	Address string `json:"address"`
 }
 
-func CreateAddress() (string, error) {
-	resp, err := sendGetRequest("v1/newaddress?type=2")
+func (client *LightningClient) CreateAddress() (string, error) {
+	resp, err := client.sendGetRequest("v1/newaddress?type=2")
 	if err != nil {
 		log.Println(err)
 		return "", err

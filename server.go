@@ -1,41 +1,101 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
-	"os"
+	"net/http"
 	"strconv"
+	"text/template"
 	"time"
 
+	"github.com/habibitcoin/habibalancer/configs"
 	"github.com/habibitcoin/habibalancer/deezy"
+	"github.com/habibitcoin/habibalancer/handler"
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
 	"github.com/habibitcoin/habibalancer/operators/strike"
-	"github.com/joho/godotenv"
-)
-
-var (
-	deezyPeer         = GoDotEnvVariable("DEEZY_PEER")
-	minLoopSize, _    = strconv.Atoi(GoDotEnvVariable("LOOP_SIZE_MIN_SAT"))
-	localAmountMin, _ = strconv.Atoi(GoDotEnvVariable("LOCAL_AMOUNT_MIN_SAT"))
-
-	krakenAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MIN_BTC"), 64)
-	krakenAmtXBTmax, _ = strconv.ParseFloat(GoDotEnvVariable("KRAKEN_OP_MAX_BTC"), 64)
-
-	strikeAmtXBTmin, _ = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MIN_BTC"), 64)
-	strikeAmtXBTmax, _ = strconv.ParseFloat(GoDotEnvVariable("STRIKE_OP_MAX_BTC"), 64)
-
-	maxLiqFeePpm, _ = strconv.ParseFloat(GoDotEnvVariable("MAX_LIQ_FEE_PPM"), 64)
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
-	looper()
+	var webServer string
+	ctx := context.Background()
+	ctx, err := configs.LoadConfig(ctx)
+	if err != nil {
+		log.Println("You need to create a .env file or use the web browser helper at localhost:1323")
+		webServer = "true"
+	} else {
+		webServer = configs.GetConfig(ctx).WebServer
+	}
+
+	if webServer == "true" {
+		// Echo instance
+		e := echo.New()
+
+		templates := make(map[string]*template.Template)
+		templates["index.html"] = template.Must(template.ParseFiles("templates/index.html", "templates/base.html"))
+		e.Renderer = &TemplateRegistry{
+			templates: templates,
+		}
+
+		// Middleware
+		e.Use(middleware.Logger())
+		e.Use(middleware.Recover())
+
+		// Initialize handler
+		h := &handler.Handler{
+			Context: ctx,
+			Config:  configs.GetConfig(ctx),
+		}
+
+		// Route => handler
+		e.GET("/", h.Index)
+		e.POST("/", h.SaveConfig)
+		e.GET("/begin", func(c echo.Context) error {
+			// refresh context and configs
+			h.Context = context.WithValue(h.Context, "configs", h.Config)
+			go looper(h.Context)
+			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
+		})
+		e.Static("/static", "static")
+		e.File("/favicon.ico", "static/images/favicon.ico")
+
+		// Start server
+		e.Logger.Fatal(e.Start(":1323"))
+	} else {
+		looper(ctx)
+	}
 }
 
-func looper() (err error) {
-	if GoDotEnvVariable("STRIKE_ENABLED") == "true" {
-		go strike.StrikeRepurchaser()
+func looper(ctx context.Context) (err error) {
+	var (
+		config        = configs.GetConfig(ctx)
+		deezyPeer     = config.DeezyPeer
+		strikeEnabled = config.StrikeEnabled
+		krakenEnabled = config.KrakenEnabled
+
+		minLoopSize, _    = strconv.Atoi(config.LoopSizeMinSat)
+		localAmountMin, _ = strconv.Atoi(config.LocalAmountMinSat)
+
+		krakenAmtXBTmin, _ = strconv.ParseFloat(config.KrakenOpMinBtc, 64)
+		krakenAmtXBTmax, _ = strconv.ParseFloat(config.KrakenOpMaxBtc, 64)
+
+		strikeAmtXBTmin, _ = strconv.ParseFloat(config.StrikeOpMinBtc, 64)
+		strikeAmtXBTmax, _ = strconv.ParseFloat(config.StrikeOpMaxBtc, 64)
+
+		maxLiqFeePpm, _ = strconv.ParseFloat(config.MaxLiqFeePpm, 64)
+
+		lightningClient = lightning.NewClient(ctx)
+		krakenClient    = kraken.NewClient(ctx)
+		strikeClient    = strike.NewClient(ctx)
+	)
+	if strikeEnabled == "true" {
+		go strike.StrikeRepurchaser(ctx)
 	}
 	firstRun := true
 	for {
@@ -44,12 +104,12 @@ func looper() (err error) {
 		}
 		firstRun = false
 		// Step 1: Find if we have a channel opened with Deezy
-		chanExists := deezy.IsChannelOpen()
+		chanExists := lightningClient.IsChannelOpen(deezyPeer)
 		log.Println(chanExists)
 
 		// Step 2:  If we do not have an open channel, see if we have enough money to open one
 		if !chanExists {
-			Balance, err := lightning.GetBalance()
+			Balance, err := lightningClient.GetBalance()
 			if err != nil {
 				log.Println("Unexpected error fetching on-chain balance")
 				log.Println(err)
@@ -64,7 +124,7 @@ func looper() (err error) {
 			}
 			if totalBalance > minLoopSize {
 				log.Println("Opening channel to Deezy")
-				resp, err := lightning.CreateChannel(deezyPeer, totalBalance-500000) // leave 500000 cushion
+				resp, err := lightningClient.CreateChannel(deezyPeer, totalBalance-500000) // leave 500000 cushion
 				if err != nil {
 					log.Println("Error opening channel")
 					log.Println(err)
@@ -75,7 +135,7 @@ func looper() (err error) {
 			}
 		} else {
 			// Check if our open channel with Deezy's local balance is less than minimum close satoshis
-			channels, err := lightning.ListChannels(deezyPeer)
+			channels, err := lightningClient.ListChannels(deezyPeer)
 			if err != nil {
 				log.Println("Unexpected error fetching channels")
 				log.Println(err)
@@ -85,7 +145,7 @@ func looper() (err error) {
 				// If our local balance is less than the minimum, lets get paid!
 				balanceInt, _ := strconv.Atoi(channels.Channels[0].LocalBalance)
 				if balanceInt < localAmountMin {
-					result, err := deezy.CloseChannel(channels.Channels[0].ChannelPoint)
+					result, err := deezy.CloseChannel(channels.Channels[0].ChannelPoint, lightningClient)
 					if err != nil {
 						log.Println("Error getting paid from Deezy")
 						log.Println(err)
@@ -109,19 +169,19 @@ func looper() (err error) {
 		*/
 
 		// STAY IN LOOP UNTIL BALANCE OF OPERATORS IS > LIQUIDITY OPERATION AMOUNT
-		if GoDotEnvVariable("KRAKEN_ENABLED") == "true" {
+		if krakenEnabled == "true" {
 			// Fetch Kraken LN Deposit Address
 			krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
 			krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
 			krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
-			lnInvoice := kraken.GetAddress(krakenAmtXBT)
+			lnInvoice := krakenClient.GetAddress(krakenAmtXBT)
 			if lnInvoice == "" {
 				continue
 			}
 			log.Println(lnInvoice)
 			// Try to pay invoice
 			for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
-				_, err = lightning.SendPayReq(lnInvoice, krakenAmtXBTfee)
+				_, err = lightningClient.SendPayReq(lnInvoice, krakenAmtXBTfee)
 				if err != nil {
 					log.Println(err)
 					if consecutiveErrors == 9 {
@@ -136,7 +196,7 @@ func looper() (err error) {
 			// Get our Kraken balance in XBT
 
 			// Try to withdraw all Kraken BTC because operator balance > liq amount
-			result, err := kraken.Withdraw()
+			result, err := krakenClient.Withdraw()
 			if err != nil {
 				log.Println(err)
 			} else {
@@ -144,20 +204,20 @@ func looper() (err error) {
 			}
 		}
 
-		if GoDotEnvVariable("STRIKE_ENABLED") == "true" {
+		if strikeEnabled == "true" {
 			// Begin Strike Liquidity Operation attempt
 			if strikeAmtXBTmax > 0 {
 				strikeAmtXBTi := strikeAmtXBTmin + rand.Float64()*(strikeAmtXBTmax-strikeAmtXBTmin)
 				strikeAmtXBT := fmt.Sprintf("%.5f", strikeAmtXBTi)
 				strikeAmtXBTfee := fmt.Sprintf("%.0f", strikeAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
-				lnInvoice := strike.GetAddress(strikeAmtXBT)
+				lnInvoice := strikeClient.GetAddress(strikeAmtXBT)
 				if lnInvoice == "" {
 					continue
 				}
 				log.Println(lnInvoice)
 				// Try to pay invoice
 				for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
-					_, err = lightning.SendPayReq(lnInvoice, strikeAmtXBTfee)
+					_, err = lightningClient.SendPayReq(lnInvoice, strikeAmtXBTfee)
 					if err != nil {
 						log.Println(err)
 						if consecutiveErrors == 9 {
@@ -170,7 +230,7 @@ func looper() (err error) {
 			}
 
 			// Withdraw funds from Strike
-			success, err := strike.Withdraw()
+			success, err := strikeClient.Withdraw(lightningClient)
 			if err != nil || success == false {
 				log.Println(err)
 				continue
@@ -183,14 +243,17 @@ func looper() (err error) {
 	return nil
 }
 
-// use godot package to load/read the .env file and
-// return the value of the key.
-func GoDotEnvVariable(key string) string {
-	// load .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
+// Define the template registry struct
+type TemplateRegistry struct {
+	templates map[string]*template.Template
+}
 
-	return os.Getenv(key)
+// Implement e.Renderer interface
+func (t *TemplateRegistry) Render(w io.Writer, name string, data interface{}, c echo.Context) error {
+	tmpl, ok := t.templates[name]
+	if !ok {
+		err := errors.New("Template not found -> " + name)
+		return err
+	}
+	return tmpl.ExecuteTemplate(w, "base.html", data)
 }

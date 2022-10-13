@@ -15,11 +15,11 @@ type withdrawalResponse struct {
 	NewBalance amountType `json:"newPrepaidBalance"` // we want 0 amount after withdrawal
 }
 
-func createWithdrawal(address string, BTCamount string) (success bool, err error) {
+func (client StrikeClient) createWithdrawal(address string, BTCamount string) (success bool, err error) {
 	var amount amountType
 	amount.Currency = "BTC"
 	amount.Amount = BTCamount
-	resp, err := sendPostRequest(withdrawEndpoint, &withdrawalPayload{
+	resp, err := client.sendPostRequest(withdrawEndpoint, &withdrawalPayload{
 		Address: address,
 		Amount:  amount,
 	})

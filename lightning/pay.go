@@ -1,10 +1,13 @@
 package lightning
 
 import (
+	"context"
 	"encoding/json"
 	"io/ioutil"
 	"log"
 	"strings"
+
+	"github.com/habibitcoin/habibalancer/configs"
 )
 
 type PayResponse struct {
@@ -21,8 +24,8 @@ type PayResponse struct {
 	NumMsat         string
 }
 
-func GetPayReq(payreq string) (payment PayResponse, err error) {
-	resp, err := sendGetRequest("v1/payreq/" + payreq)
+func (client *LightningClient) GetPayReq(ctx context.Context, payreq string) (payment PayResponse, err error) {
+	resp, err := client.sendGetRequest("v1/payreq/" + payreq)
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
@@ -34,9 +37,9 @@ func GetPayReq(payreq string) (payment PayResponse, err error) {
 	return payment, err
 }
 
-func GetPaymentRequestValid(paymentRequest string) bool {
+func (client *LightningClient) GetPaymentRequestValid(paymentRequest string) bool {
 	// First see if invoice exists
-	resp, err := sendGetRequest("v1/payreq/" + paymentRequest)
+	resp, err := client.sendGetRequest("v1/payreq/" + paymentRequest)
 	if err != nil {
 		return false
 	}
@@ -61,16 +64,19 @@ type PaymentRequestPayload struct {
 	FeeLimitSat     string   `json:"fee_limit_sat"`
 }
 
-func SendPayReq(payreq string, feeLimitSat string) (string, error) {
-	excludeDeezy := GoDotEnvVariable("EXCLUDE_DEEZY_FROM_LIQ_OPS")
+func (client *LightningClient) SendPayReq(payreq string, feeLimitSat string) (string, error) {
+	config := configs.GetConfig(client.Context)
+	excludeDeezy := config.ExcludeDeezyFromLiqOps
+	timeoutSeconds := config.PayTimeoutSeconds
+	deezyPeer := config.DeezyPeer
 
 	payload := &PaymentRequestPayload{
 		PaymentRequest: payreq,
-		TimeoutSeconds: GoDotEnvVariable("PAY_TIMEOUT_SECONDS"),
+		TimeoutSeconds: timeoutSeconds,
 		FeeLimitSat:    feeLimitSat,
 	}
 	if excludeDeezy == "true" {
-		ChannelExists, err := ListChannels(GoDotEnvVariable("DEEZY_PEER"))
+		ChannelExists, err := client.ListChannels(deezyPeer)
 		if err != nil {
 			log.Println(err)
 			return "", err
@@ -78,19 +84,19 @@ func SendPayReq(payreq string, feeLimitSat string) (string, error) {
 			// no open deezy channels, so we don't need to exclude him explicitly
 		} else {
 			// Loop through each channel IDs and append to []string array
-			allChannels, err := ListChannels("")
+			allChannels, err := client.ListChannels("")
 			if err != nil {
 				log.Println(err)
 				return "", err
 			}
 			for _, channel := range allChannels.Channels {
-				if channel.Peer != GoDotEnvVariable("DEEZY_PEER") {
+				if channel.Peer != deezyPeer {
 					payload.OutgoingChanIds = append(payload.OutgoingChanIds, channel.ChannelId)
 				}
 			}
 		}
 	}
-	resp, err := sendPostRequestJSON("v2/router/send", payload)
+	resp, err := client.sendPostRequestJSON("v2/router/send", payload)
 	if err != nil {
 		log.Println(err)
 		return "", err

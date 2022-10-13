@@ -2,6 +2,7 @@ package strike
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -11,8 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/habibitcoin/habibalancer/configs"
 	"github.com/habibitcoin/habibalancer/lightning"
-	"github.com/joho/godotenv"
 	"github.com/sqweek/dialog"
 )
 
@@ -32,11 +33,6 @@ const (
 
 var (
 	privateEndpoints = []string{balancesAndLimitsEndpoint, withdrawEndpoint, exchangeEndpoint, confirmExchangeEndpoint, historyEndpoint}
-
-	strikeWithdrawAmtXBTmin, _          = strconv.ParseFloat(GoDotEnvVariable("STRIKE_WITHDRAW_BTC_MIN"), 64)
-	strikeDailyLimitBufferUSD, _        = strconv.ParseFloat(GoDotEnvVariable("STRIKE_DAILY_LIMIT_BUFFER_USD"), 64)
-	strikeWeeklyLimitBufferUSD, _       = strconv.ParseFloat(GoDotEnvVariable("STRIKE_WEEKLY_LIMIT_BUFFER_USD"), 64)
-	strikeRepurchaserCooldownSeconds, _ = strconv.Atoi(GoDotEnvVariable("STRIKE_REPURCHASER_COOLDOWN_SECONDS"))
 )
 
 const (
@@ -48,9 +44,36 @@ const (
 	ratesEndpoint = "rates/ticker" // GET
 )
 
+type StrikeClient struct {
+	Client   *http.Client
+	ApiKey   string
+	JwtToken string
+	Context  context.Context
+}
+
+// func NewClient
+func NewClient(ctx context.Context) (client StrikeClient) {
+	httpClient := &http.Client{}
+	config := configs.GetConfig(ctx)
+	client = StrikeClient{
+		Client:   httpClient,
+		ApiKey:   config.StrikeApiKey,
+		JwtToken: config.StrikeJwtToken,
+		Context:  ctx,
+	}
+
+	return client
+}
+
 // Receives an amount defined in BTC, returns success.
-func Withdraw() (bool, error) {
-	strikeBalanceStringXBT, err := GetBalance()
+func (client StrikeClient) Withdraw(lightningClient lightning.LightningClient) (bool, error) {
+	var (
+		config = configs.GetConfig(client.Context)
+
+		strikeWithdrawAmtXBTmin, _ = strconv.ParseFloat(config.StrikeWithdrawBtcMin, 64)
+	)
+
+	strikeBalanceStringXBT, err := client.GetBalance()
 	if err != nil {
 		return false, err
 	}
@@ -59,13 +82,13 @@ func Withdraw() (bool, error) {
 	strikeBalanceFloatXBT, _ := strconv.ParseFloat(strikeBalanceStringXBT, 64)
 
 	if strikeBalanceFloatXBT > strikeWithdrawAmtXBTmin {
-		address, err := lightning.CreateAddress()
+		address, err := lightningClient.CreateAddress()
 		if err != nil {
 			log.Println("Error from LND creating new address for Strike withdrawal")
 			return false, err
 		}
 
-		success, err := createWithdrawal(address, strikeBalanceStringXBT)
+		success, err := client.createWithdrawal(address, strikeBalanceStringXBT)
 		if err != nil {
 			return false, err
 		}
@@ -76,8 +99,8 @@ func Withdraw() (bool, error) {
 	return false, nil
 }
 
-func GetBalance() (string, error) {
-	success, err := GetBalanceAndLimits()
+func (client StrikeClient) GetBalance() (string, error) {
+	success, err := client.GetBalanceAndLimits()
 	if err != nil {
 		return "", err
 	}
@@ -89,9 +112,15 @@ func GetBalance() (string, error) {
 }
 
 // Receives an amount defined in BTC, returns an invoice.
-func GetAddress(amount string) (invoice string) {
+func (client StrikeClient) GetAddress(amount string) (invoice string) {
+	var (
+		config = configs.GetConfig(client.Context)
+
+		strikeDailyLimitBufferUSD, _  = strconv.ParseFloat(config.StrikeDailyLimitBufferUsd, 64)
+		strikeWeeklyLimitBufferUSD, _ = strconv.ParseFloat(config.StrikeWeeklyLimitBufferUsd, 64)
+	)
 	// First we need to get price of BTC
-	rates, err := getRates()
+	rates, err := client.getRates()
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -111,7 +140,7 @@ func GetAddress(amount string) (invoice string) {
 	USDstring := fmt.Sprintf("%.2f", USDfloat)
 
 	// See if we have enough left in our limits to repurchase + withdraw
-	balanceAndLimits, err := GetBalanceAndLimits()
+	balanceAndLimits, err := client.GetBalanceAndLimits()
 	if err != nil {
 		return ""
 	}
@@ -133,7 +162,7 @@ func GetAddress(amount string) (invoice string) {
 	// after taking our daily and weekly limits into consideration
 	// Neither should be allowed to be exceeded, and leave $250 of buffer
 
-	invoiceId, err := getInvoice("rebealanc for "+amount+" BTC", USDstring)
+	invoiceId, err := client.getInvoice("rebealanc for "+amount+" BTC", USDstring)
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -141,7 +170,7 @@ func GetAddress(amount string) (invoice string) {
 
 	log.Println(invoiceId.InvoiceId)
 
-	lnInvoice, err := getInvoiceQuote(invoiceId.InvoiceId)
+	lnInvoice, err := client.getInvoiceQuote(invoiceId.InvoiceId)
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -151,7 +180,13 @@ func GetAddress(amount string) (invoice string) {
 }
 
 // Repurchase attempts to buy back all received BTC that are sitting as a USD balance without losses.
-func StrikeRepurchaser() (err error) {
+func StrikeRepurchaser(ctx context.Context) (err error) {
+	var (
+		config                              = configs.GetConfig(ctx)
+		client                              = NewClient(ctx)
+		strikeRepurchaserCooldownSeconds, _ = strconv.Atoi(config.StrikeRepurchaseCooldownSeconds)
+		strikeRepurchaserManualMode         = config.StrikeRepurchaserManualMode
+	)
 	firstRun := true
 	for {
 		if !firstRun {
@@ -160,7 +195,7 @@ func StrikeRepurchaser() (err error) {
 		firstRun = false
 
 		// First we fetch our recents transactions (looking back to our most recent BTC purchase, so we dont impact other activity)
-		recentTransactions, err := getHistory()
+		recentTransactions, err := client.getHistory()
 		if err != nil {
 			log.Println("Strike repurchase crashed getting recentTransactions")
 			log.Println(err)
@@ -184,7 +219,7 @@ func StrikeRepurchaser() (err error) {
 		if spendAmountUSD > 0 {
 			// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
 			spendAmountUSDString := fmt.Sprintf("%.2f", spendAmountUSD)
-			createdQuote, err := exchange(spendAmountUSDString, "USD", "BTC")
+			createdQuote, err := client.exchange(spendAmountUSDString, "USD", "BTC")
 			if err != nil {
 				log.Println("Error creating quote for repurchaser")
 				log.Println(err)
@@ -197,11 +232,11 @@ func StrikeRepurchaser() (err error) {
 
 			quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
 			if quotedBTC >= buyBackAmountBTC {
-				if GoDotEnvVariable("STRIKE_REPURCHASER_MANUAL_MODE") == "true" {
+				if strikeRepurchaserManualMode == "true" {
 					dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
 				} else {
 					time.Sleep(1 * time.Second)
-					success, err := confirmExchange(createdQuote.QuoteId)
+					success, err := client.confirmExchange(createdQuote.QuoteId)
 					if err != nil || !success {
 						log.Println("Error accepting quote on exchange for repurchaser")
 						log.Println(err)
@@ -218,9 +253,7 @@ func StrikeRepurchaser() (err error) {
 	return nil
 }
 
-func sendGetRequest(endpoint string) (*http.Response, error) {
-	client := &http.Client{}
-
+func (client StrikeClient) sendGetRequest(endpoint string) (*http.Response, error) {
 	URL := publicStrikeURL
 	if contains(privateEndpoints, endpoint) {
 		URL = privateStrikeURL
@@ -234,12 +267,12 @@ func sendGetRequest(endpoint string) (*http.Response, error) {
 	}
 
 	if contains(privateEndpoints, endpoint) {
-		req.Header.Add("Authorization", "Bearer "+GoDotEnvVariable("STRIKE_JWT_TOKEN"))
+		req.Header.Add("Authorization", "Bearer "+client.JwtToken)
 	} else {
-		req.Header.Add("Authorization", "Bearer "+GoDotEnvVariable("STRIKE_API_KEY"))
+		req.Header.Add("Authorization", "Bearer "+client.ApiKey)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := client.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -247,9 +280,7 @@ func sendGetRequest(endpoint string) (*http.Response, error) {
 	return resp, err
 }
 
-func sendPostRequest(endpoint string, payload interface{}) (*http.Response, error) {
-	client := &http.Client{}
-
+func (client StrikeClient) sendPostRequest(endpoint string, payload interface{}) (*http.Response, error) {
 	jsonStr, err := json.Marshal(payload)
 	if err != nil {
 		log.Println("Error marshaling")
@@ -276,28 +307,16 @@ func sendPostRequest(endpoint string, payload interface{}) (*http.Response, erro
 
 	req.Header.Add("Content-Type", "application/json")
 	if contains(privateEndpoints, endpoint) {
-		req.Header.Add("Authorization", "Bearer "+GoDotEnvVariable("STRIKE_JWT_TOKEN"))
+		req.Header.Add("Authorization", "Bearer "+client.JwtToken)
 	} else {
-		req.Header.Add("Authorization", "Bearer "+GoDotEnvVariable("STRIKE_API_KEY"))
+		req.Header.Add("Authorization", "Bearer "+client.ApiKey)
 	}
-	resp, err := client.Do(req)
+	resp, err := client.Client.Do(req)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 	return resp, nil
-}
-
-// use godot package to load/read the .env file and
-// return the value of the key.
-func GoDotEnvVariable(key string) string {
-	// load .env file
-	err := godotenv.Load(".env")
-	if err != nil {
-		log.Fatalf("Error loading .env file")
-	}
-
-	return os.Getenv(key)
 }
 
 func contains(s []string, str string) bool {
