@@ -6,8 +6,6 @@ import (
 	"io/ioutil"
 	"log"
 	"strings"
-
-	"github.com/habibitcoin/habibalancer/configs"
 )
 
 type PayResponse struct {
@@ -65,10 +63,9 @@ type PaymentRequestPayload struct {
 }
 
 func (client *LightningClient) SendPayReq(payreq string, feeLimitSat string) (string, error) {
-	config := configs.GetConfig(client.Context)
-	excludeDeezy := config.ExcludeDeezyFromLiqOps
-	timeoutSeconds := config.PayTimeoutSeconds
-	deezyPeer := config.DeezyPeer
+	excludeDeezy := client.ExcludeDeezy
+	timeoutSeconds := client.TimeoutSeconds
+	deezyPeer := client.DeezyPeer
 
 	payload := &PaymentRequestPayload{
 		PaymentRequest: payreq,

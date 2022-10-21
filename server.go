@@ -58,8 +58,9 @@ func main() {
 		e.POST("/", h.SaveConfig)
 		e.GET("/begin", func(c echo.Context) error {
 			// refresh context and configs
-			h.Context = context.WithValue(h.Context, "configs", h.Config)
-			go looper(h.Context)
+			ctx := context.Background()
+			ctx, _ = configs.LoadConfig(ctx)
+			go looper(ctx)
 			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
 		})
 		e.Static("/static", "static")
