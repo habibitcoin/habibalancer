@@ -18,7 +18,9 @@ You will need:
 
 ## Setup
 Easy Setup: download one of the binaries, run the file, and visit localhost:1323 to get started! Watch the video below.
+Mirror at [https://vimeo.com/770879037](https://vimeo.com/770879037)
 [![Watch the video](https://i.imgur.com/YX7uPMi.png)](https://www.youtube.com/watch?v=5jpLN6EskDw)
+
 
 
 Advanced Setup: If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
