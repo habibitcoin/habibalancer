@@ -1,6 +1,6 @@
 module github.com/habibitcoin/habibalancer
 
-go 1.18
+go 1.19
 
 require (
 	github.com/beldur/kraken-go-api-client v0.0.0-20210512194559-2c29669c4ecc
