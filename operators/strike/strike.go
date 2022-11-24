@@ -45,10 +45,11 @@ const (
 )
 
 type StrikeClient struct {
-	Client   *http.Client
-	ApiKey   string
-	JwtToken string
-	Context  context.Context
+	Client          *http.Client
+	ApiKey          string
+	JwtToken        string
+	DefaultCurrency string
+	Context         context.Context
 }
 
 // func NewClient
@@ -56,10 +57,11 @@ func NewClient(ctx context.Context) (client StrikeClient) {
 	httpClient := &http.Client{}
 	config := configs.GetConfig(ctx)
 	client = StrikeClient{
-		Client:   httpClient,
-		ApiKey:   config.StrikeApiKey,
-		JwtToken: config.StrikeJwtToken,
-		Context:  ctx,
+		Client:          httpClient,
+		ApiKey:          config.StrikeApiKey,
+		JwtToken:        config.StrikeJwtToken,
+		DefaultCurrency: config.StrikeDefaultCurrency,
+		Context:         ctx,
 	}
 
 	return client
@@ -128,7 +130,7 @@ func (client StrikeClient) GetAddress(amount string) (invoice string) {
 
 	var price rateType
 	for _, rate := range rates {
-		if rate.TargetCurrency == "USD" && rate.SourceCurrency == "BTC" {
+		if rate.TargetCurrency == client.DefaultCurrency && rate.SourceCurrency == "BTC" {
 			price = rate
 		}
 	}
@@ -146,8 +148,11 @@ func (client StrikeClient) GetAddress(amount string) (invoice string) {
 	}
 
 	BTCinUSDlimits := balanceAndLimits.Limits[0]
-	if BTCinUSDlimits.Currency != "USD" {
+	if BTCinUSDlimits.Currency != client.DefaultCurrency {
 		BTCinUSDlimits = balanceAndLimits.Limits[1]
+		if BTCinUSDlimits.Currency != client.DefaultCurrency {
+			BTCinUSDlimits = balanceAndLimits.Limits[2]
+		}
 	}
 
 	dailyBTCWithdrawalRemaining, _ := strconv.ParseFloat(BTCinUSDlimits.BTCDailyLimit.Remaining.Amount, 64)
@@ -219,7 +224,7 @@ func StrikeRepurchaser(ctx context.Context) (err error) {
 		if spendAmountUSD > 0 {
 			// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
 			spendAmountUSDString := fmt.Sprintf("%.2f", spendAmountUSD)
-			createdQuote, err := client.exchange(spendAmountUSDString, "USD", "BTC")
+			createdQuote, err := client.exchange(spendAmountUSDString, client.DefaultCurrency, "BTC")
 			if err != nil {
 				log.Println("Error creating quote for repurchaser")
 				log.Println(err)

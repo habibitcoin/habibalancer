@@ -101,7 +101,7 @@ func looper(ctx context.Context) (err error) {
 	firstRun := true
 	for {
 		if !firstRun {
-			time.Sleep(15 * time.Second)
+			time.Sleep(99999 * time.Second)
 		}
 		firstRun = false
 		// Step 1: Find if we have a channel opened with Deezy

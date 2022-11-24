@@ -45,6 +45,7 @@ type Config struct {
 	StrikeRepurchaseCooldownSeconds string `form:"StrikeRepurchaseCooldownSeconds"`
 	StrikeApiKey                    string `form:"StrikeApiKey"`
 	StrikeJwtToken                  string `form:"StrikeJwtToken"`
+	StrikeDefaultCurrency           string `form:"StrikeDefaultCurrency"`
 }
 
 func (configs Config) GetConfigMap() (configMap map[string]string) {
@@ -126,6 +127,7 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		StrikeRepurchaseCooldownSeconds: os.Getenv("StrikeRepurchaseCooldownSeconds"),
 		StrikeApiKey:                    os.Getenv("StrikeApiKey"),
 		StrikeJwtToken:                  os.Getenv("StrikeJwtToken"),
+		StrikeDefaultCurrency:           os.Getenv("StrikeDefaultCurrency"),
 	}
 
 	ctx = context.WithValue(ctx, "configs", configs)
