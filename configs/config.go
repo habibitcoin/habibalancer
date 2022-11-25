@@ -15,6 +15,7 @@ type Config struct {
 	MacaroonLocation string `form:"MacaroonLocation"`
 	Macaroon         string `form:"Macaroon"`
 	WebServer        string `form:"WebServer"`
+	FeeRateSatsPerVb string `form:"FeeRateSatsPerVb"`
 
 	DeezyPeer              string `form:"DeezyPeer"`
 	LoopSizeMinSat         string `form:"LoopSizeMinSat"`
@@ -97,6 +98,7 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		MacaroonLocation: os.Getenv("MacaroonLocation"),
 		Macaroon:         os.Getenv("Macaroon"),
 		WebServer:        os.Getenv("WebServer"),
+		FeeRateSatsPerVb: os.Getenv("FeeRateSatsPerVb"),
 
 		DeezyPeer:              os.Getenv("DeezyPeer"),
 		LoopSizeMinSat:         os.Getenv("LoopSizeMinSat"),
