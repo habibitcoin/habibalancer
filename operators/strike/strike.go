@@ -213,7 +213,7 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 			return err
 		}
 
-		if client.DefaultCurrency == "USD" && 1 == 0 {
+		if client.DefaultCurrency == "USD" {
 			// Then we need to buy back all the BTC from receives that have the description "rebealanc". Sum these amounts.
 			var spendAmountUSD float64
 			var buyBackAmountBTC float64
