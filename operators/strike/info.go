@@ -16,8 +16,14 @@ type bucketType struct {
 	Limit     amountType `json:"limit"`
 }
 
+type simpleType struct {
+	Limit amountType `json:"limit"`
+}
+
 type limitType struct {
 	Currency       string     `json:"currency"`
+	PaymentsTotal  bucketType `json:"paymentsTotal,omitempty"`
+	PaymentsSingle simpleType `json:"paymentsSingle,omitempty"`
 	BTCDailyLimit  bucketType `json:"btcWithdrawalTotal1,omitempty"`
 	BTCWeeklyLimit bucketType `json:"btcWithdrawalTotal2,omitempty"`
 }

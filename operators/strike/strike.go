@@ -23,7 +23,9 @@ const (
 
 	balancesAndLimitsEndpoint = "user/info"
 
-	withdrawEndpoint = "withdrawal/cryptoaddress" // POST
+	withdrawEndpoint       = "withdrawal/cryptoaddress" // POST
+	onchainSendEndpoint    = "send/onchain/quote"       // POST
+	confirmOnchainEndpoint = "send/pay/:quoteId"        // POST
 
 	exchangeEndpoint        = "exchange" // confirm with /:quoteId
 	confirmExchangeEndpoint = "exchange/:quoteId"
@@ -32,7 +34,7 @@ const (
 )
 
 var (
-	privateEndpoints = []string{balancesAndLimitsEndpoint, withdrawEndpoint, exchangeEndpoint, confirmExchangeEndpoint, historyEndpoint}
+	privateEndpoints = []string{balancesAndLimitsEndpoint, withdrawEndpoint, exchangeEndpoint, confirmExchangeEndpoint, historyEndpoint, onchainSendEndpoint, confirmOnchainEndpoint}
 )
 
 const (
@@ -159,8 +161,12 @@ func (client StrikeClient) GetAddress(amount string) (invoice string) {
 	weeklyBTCWithdrawalRemaining, _ := strconv.ParseFloat(BTCinUSDlimits.BTCWeeklyLimit.Remaining.Amount, 64)
 
 	if ((dailyBTCWithdrawalRemaining - USDfloat) < strikeDailyLimitBufferUSD) || ((weeklyBTCWithdrawalRemaining - USDfloat) < strikeWeeklyLimitBufferUSD) {
-		log.Println("Not enough buffer remanining to send to Strike")
-		return ""
+		log.Println("Not enough buffer remanining to send to Strike with BTC limits, trying USD limit")
+		paymentsUSDWithdrawalRemaining, _ := strconv.ParseFloat(BTCinUSDlimits.PaymentsTotal.Remaining.Amount, 64)
+		if (paymentsUSDWithdrawalRemaining - USDfloat) < strikeWeeklyLimitBufferUSD {
+			log.Println("Not enough buffer remanining to send to Strike with USD limits")
+			return ""
+		}
 	}
 
 	// Check if we will be able to withdraw our current balance + this rebalance
@@ -185,7 +191,7 @@ func (client StrikeClient) GetAddress(amount string) (invoice string) {
 }
 
 // Repurchase attempts to buy back all received BTC that are sitting as a USD balance without losses.
-func StrikeRepurchaser(ctx context.Context) (err error) {
+func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 	var (
 		config                              = configs.GetConfig(ctx)
 		client                              = NewClient(ctx)
@@ -206,52 +212,113 @@ func StrikeRepurchaser(ctx context.Context) (err error) {
 			log.Println(err)
 			return err
 		}
-		// Then we need to buy back all the BTC from receives that have the description "rebealanc". Sum these amounts.
-		var spendAmountUSD float64
-		var buyBackAmountBTC float64
-		for _, transaction := range recentTransactions.Items {
-			if strings.Contains(transaction.Description, "rebealanc") && transaction.Type == "OrderReceive" && transaction.State == "COMPLETED" {
-				amountFloat, _ := strconv.ParseFloat(transaction.Amount.Amount, 64)
-				spendAmountUSD = spendAmountUSD + amountFloat
-				rateFloat, _ := strconv.ParseFloat(transaction.Rate.Amount, 64)
-				buyBackAmountBTC = buyBackAmountBTC + (amountFloat / rateFloat)
-			} else if transaction.Type == "ExchangeSell" && transaction.State == "COMPLETED" {
-				break
-			} else {
-				continue
+
+		if client.DefaultCurrency == "USD" {
+			// Then we need to buy back all the BTC from receives that have the description "rebealanc". Sum these amounts.
+			var spendAmountUSD float64
+			var buyBackAmountBTC float64
+			for _, transaction := range recentTransactions.Items {
+				if strings.Contains(transaction.Description, "rebealanc") && transaction.Type == "OrderReceive" && transaction.State == "COMPLETED" {
+					amountFloat, _ := strconv.ParseFloat(transaction.Amount.Amount, 64)
+					spendAmountUSD = spendAmountUSD + amountFloat
+					rateFloat, _ := strconv.ParseFloat(transaction.Rate.Amount, 64)
+					buyBackAmountBTC = buyBackAmountBTC + (amountFloat / rateFloat)
+				} else if transaction.Type == "ExchangeSell" && transaction.State == "COMPLETED" {
+					break
+				} else {
+					continue
+				}
 			}
-		}
-		if spendAmountUSD > 0 {
-			// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
-			spendAmountUSDString := fmt.Sprintf("%.2f", spendAmountUSD)
-			createdQuote, err := client.exchange(spendAmountUSDString, client.DefaultCurrency, "BTC")
-			if err != nil {
-				log.Println("Error creating quote for repurchaser")
-				log.Println(err)
-				continue
-			} else if createdQuote.USD.Fee.Amount != "0.00" {
-				log.Println(createdQuote.USD.Fee.Amount)
-				log.Println("Unexpected non-zero fee!")
-				os.Exit(1)
+			if spendAmountUSD > 0 {
+				// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
+				spendAmountUSDString := fmt.Sprintf("%.2f", spendAmountUSD)
+				createdQuote, err := client.exchange(spendAmountUSDString, client.DefaultCurrency, "BTC")
+				if err != nil {
+					log.Println("Error creating quote for repurchaser")
+					log.Println(err)
+					continue
+				} else if createdQuote.USD.Fee.Amount != "0.00" {
+					log.Println(createdQuote.USD.Fee.Amount)
+					log.Println("Unexpected non-zero fee!")
+					os.Exit(1)
+				}
+
+				quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
+				if quotedBTC >= buyBackAmountBTC {
+					if strikeRepurchaserManualMode == "true" {
+						dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
+					} else {
+						time.Sleep(1 * time.Second)
+						success, err := client.confirmExchange(createdQuote.QuoteId)
+						if err != nil || !success {
+							log.Println("Error accepting quote on exchange for repurchaser")
+							log.Println(err)
+						}
+					}
+				} else {
+					log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", quotedBTC) + " BTC")
+				}
+			} else {
+				log.Println("Nothing to buy back!")
+			}
+		} else {
+			// Then we need to send back all the BTC from receives that have the description "rebealanc". Sum these amounts.
+			var spendAmountUSD float64
+			var buyBackAmountBTC float64
+			for _, transaction := range recentTransactions.Items {
+				if strings.Contains(transaction.Description, "rebealanc") && transaction.Type == "OrderReceive" && transaction.State == "COMPLETED" {
+					amountFloat, _ := strconv.ParseFloat(transaction.Amount.Amount, 64)
+					spendAmountUSD = spendAmountUSD + amountFloat
+					rateFloat, _ := strconv.ParseFloat(transaction.Rate.Amount, 64)
+					buyBackAmountBTC = buyBackAmountBTC + (amountFloat / rateFloat)
+				} else if transaction.Type == "Order" && transaction.State == "COMPLETED" {
+					break
+				} else {
+					continue
+				}
 			}
 
-			quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
-			if quotedBTC >= buyBackAmountBTC {
-				if strikeRepurchaserManualMode == "true" {
-					dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
-				} else {
-					time.Sleep(1 * time.Second)
-					success, err := client.confirmExchange(createdQuote.QuoteId)
-					if err != nil || !success {
-						log.Println("Error accepting quote on exchange for repurchaser")
+			if spendAmountUSD > 0 {
+				// We check if we are able to repurchase the full BTC amount back. If not, keep looping and checking
+				var chunkAmount float64
+				var amountSent float64
+				chunkAmount = 950.00 // Comply with Strike max onchain send limits
+				amountSent = 0.00
+				for amountSent < spendAmountUSD {
+					time.Sleep(time.Duration(strikeRepurchaserCooldownSeconds) * time.Second)
+					toSpend := spendAmountUSD - amountSent
+					if toSpend > chunkAmount {
+						toSpend = chunkAmount
+					}
+					toSpendString := fmt.Sprintf("%.2f", toSpend)
+					createdQuote, err := client.createOnchainSend(onchainAddress, toSpendString)
+					if err != nil {
+						log.Println("Error creating quote for repurchaser")
 						log.Println(err)
+						break
+					}
+					createdQuoteFloat, _ := strconv.ParseFloat(createdQuote.Rate.Amount, 64)
+					createdAmountFloat, _ := strconv.ParseFloat(createdQuote.USDAmount.Amount, 64)
+					createdTotalFloat, _ := strconv.ParseFloat(createdQuote.USDTotal.Amount, 64)
+					btcReceived := createdAmountFloat / createdQuoteFloat
+					trueRate := createdTotalFloat / btcReceived
+					if trueRate < (spendAmountUSD / buyBackAmountBTC) {
+						// rate is favorable, confirm
+						confirmQuote, err := client.confirmOnchainSend(createdQuote.QuoteId)
+						if err != nil || !confirmQuote {
+							log.Println("Error confirming onChainSend for repurchaser")
+							log.Println(err)
+							break
+						} else {
+							amountSent = amountSent + toSpend
+						}
+					} else {
+						log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", (spendAmountUSD/createdQuoteFloat)) + " BTC")
 					}
 				}
 			} else {
-				log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", quotedBTC) + " BTC")
+				log.Println("Nothing to buy back!")
 			}
-		} else {
-			log.Println("Nothing to buy back!")
 		}
 	}
 

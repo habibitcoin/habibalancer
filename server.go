@@ -96,7 +96,12 @@ func looper(ctx context.Context) (err error) {
 		strikeClient    = strike.NewClient(ctx)
 	)
 	if strikeEnabled == "true" {
-		go strike.StrikeRepurchaser(ctx)
+		address, err := lightningClient.CreateAddress()
+		if err != nil {
+			log.Println("Error from LND creating new address for Strike withdrawal")
+			return err
+		}
+		go strike.StrikeRepurchaser(ctx, address)
 	}
 	firstRun := true
 	for {
