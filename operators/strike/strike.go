@@ -213,7 +213,7 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 			return err
 		}
 
-		if client.DefaultCurrency == "USD" {
+		if client.DefaultCurrency == "USD" && 1 == 0 {
 			// Then we need to buy back all the BTC from receives that have the description "rebealanc". Sum these amounts.
 			var spendAmountUSD float64
 			var buyBackAmountBTC float64
@@ -313,7 +313,7 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 							amountSent = amountSent + toSpend
 						}
 					} else {
-						log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", (spendAmountUSD/createdQuoteFloat)) + " BTC")
+						log.Println("We wanted " + fmt.Sprintf("%.8f", spendAmountUSD/buyBackAmountBTC) + " BTC/USD but rate was higher at " + fmt.Sprintf("%.8f", (trueRate)) + " BTC/USD")
 					}
 				}
 			} else {
@@ -365,6 +365,10 @@ func (client StrikeClient) sendPostRequest(endpoint string, payload interface{})
 		URL = privateStrikeURL
 	}
 	if strings.Contains(endpoint, "exchange") {
+		// addresses bug for detecting endpoints with string replacing
+		URL = privateStrikeURL
+	}
+	if strings.Contains(endpoint, "send/pay") {
 		// addresses bug for detecting endpoints with string replacing
 		URL = privateStrikeURL
 	}
