@@ -14,7 +14,6 @@ import (
 
 	"github.com/habibitcoin/habibalancer/configs"
 	"github.com/habibitcoin/habibalancer/lightning"
-	"github.com/sqweek/dialog"
 )
 
 // Private Strike Endpoint and Methods.
@@ -196,7 +195,6 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 		config                              = configs.GetConfig(ctx)
 		client                              = NewClient(ctx)
 		strikeRepurchaserCooldownSeconds, _ = strconv.Atoi(config.StrikeRepurchaseCooldownSeconds)
-		strikeRepurchaserManualMode         = config.StrikeRepurchaserManualMode
 	)
 	firstRun := true
 	for {
@@ -245,16 +243,13 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 
 				quotedBTC, _ := strconv.ParseFloat(createdQuote.BTC.Amount.Amount, 64)
 				if quotedBTC >= buyBackAmountBTC {
-					if strikeRepurchaserManualMode == "true" {
-						dialog.Message("Suitable Strike Price found! You should spend %v USD to buy %v BTC back", spendAmountUSDString, createdQuote.BTC.Amount.Amount).Title("Valid Strike Quote Found!").Info()
-					} else {
-						time.Sleep(1 * time.Second)
-						success, err := client.confirmExchange(createdQuote.QuoteId)
-						if err != nil || !success {
-							log.Println("Error accepting quote on exchange for repurchaser")
-							log.Println(err)
-						}
+					time.Sleep(1 * time.Second)
+					success, err := client.confirmExchange(createdQuote.QuoteId)
+					if err != nil || !success {
+						log.Println("Error accepting quote on exchange for repurchaser")
+						log.Println(err)
 					}
+
 				} else {
 					log.Println("We wanted " + fmt.Sprintf("%.8f", buyBackAmountBTC) + " BTC for " + fmt.Sprintf("%.2f", spendAmountUSD) + " USD but we would only get " + fmt.Sprintf("%.8f", quotedBTC) + " BTC")
 				}
@@ -382,7 +377,7 @@ func (client StrikeClient) sendPostRequest(endpoint string, payload interface{})
 	}
 
 	req.Header.Add("Content-Type", "application/json")
-	if contains(privateEndpoints, endpoint) {
+	if URL == privateStrikeURL {
 		req.Header.Add("Authorization", "Bearer "+client.JwtToken)
 	} else {
 		req.Header.Add("Authorization", "Bearer "+client.ApiKey)

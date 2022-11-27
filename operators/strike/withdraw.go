@@ -102,7 +102,7 @@ func (client StrikeClient) confirmOnchainSend(quoteId string) (success bool, err
 	}
 	json.Unmarshal(bodyBytes, &quoteResponse)
 
-	if quoteResponse.Result != "COMPLETED" {
+	if quoteResponse.Result != "SUCCESS" {
 		return false, err
 	}
 

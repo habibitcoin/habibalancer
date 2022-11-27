@@ -106,7 +106,7 @@ func looper(ctx context.Context) (err error) {
 	firstRun := true
 	for {
 		if !firstRun {
-			time.Sleep(99999 * time.Second)
+			time.Sleep(15 * time.Second)
 		}
 		firstRun = false
 		// Step 1: Find if we have a channel opened with Deezy
@@ -235,13 +235,15 @@ func looper(ctx context.Context) (err error) {
 				}
 			}
 
-			// Withdraw funds from Strike
-			success, err := strikeClient.Withdraw(lightningClient)
-			if err != nil || success == false {
-				log.Println(err)
-				continue
+			// Withdraw funds from Strike if we have a BTC account. USDT account do not have BTC accounts currently
+			if strikeClient.DefaultCurrency == "USD" {
+				success, err := strikeClient.Withdraw(lightningClient)
+				if err != nil || success == false {
+					log.Println(err)
+					continue
+				}
+				log.Println("Strike withdrawal successful")
 			}
-			log.Println("Strike withdrawal successful")
 		}
 		time.Sleep(15 * time.Second)
 	}

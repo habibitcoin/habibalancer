@@ -37,7 +37,6 @@ type Config struct {
 	ChromeProfilePath    string `form:"ChromeProfilePath"`
 
 	StrikeEnabled                   string `form:"StrikeEnabled"`
-	StrikeRepurchaserManualMode     string `form:"StrikeRepurchaserManualMode"`
 	StrikeOpMinBtc                  string `form:"StrikeOpMinBtc"`
 	StrikeOpMaxBtc                  string `form:"StrikeOpMaxBtc"`
 	StrikeWithdrawBtcMin            string `form:"StrikeWithdrawBtcMin"`
@@ -120,7 +119,6 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		ChromeProfilePath:    os.Getenv("ChromeProfilePath"),
 
 		StrikeEnabled:                   os.Getenv("StrikeEnabled"),
-		StrikeRepurchaserManualMode:     os.Getenv("StrikeRepurchaserManualMode"),
 		StrikeOpMinBtc:                  os.Getenv("StrikeOpMinBtc"),
 		StrikeOpMaxBtc:                  os.Getenv("StrikeOpMaxBtc"),
 		StrikeWithdrawBtcMin:            os.Getenv("StrikeWithdrawBtcMin"),
