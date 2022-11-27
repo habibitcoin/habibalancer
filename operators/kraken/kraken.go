@@ -23,20 +23,22 @@ import (
 )
 
 type KrakenClient struct {
-	Client    *krakenapi.KrakenAPI
-	ApiKey    string
-	ApiSecret string
-	Context   context.Context
+	Client                   *krakenapi.KrakenAPI
+	ApiKey                   string
+	ApiSecret                string
+	KrakenWithdrawAddressKey string
+	Context                  context.Context
 }
 
 // func NewClient
 func NewClient(ctx context.Context) (client KrakenClient) {
 	config := configs.GetConfig(ctx)
 	client = KrakenClient{
-		Client:    krakenapi.New(config.KrakenApiKey, config.KrakenApiSecret),
-		ApiKey:    config.KrakenApiKey,
-		ApiSecret: config.KrakenApiSecret,
-		Context:   ctx,
+		Client:                   krakenapi.New(config.KrakenApiKey, config.KrakenApiSecret),
+		ApiKey:                   config.KrakenApiKey,
+		ApiSecret:                config.KrakenApiSecret,
+		KrakenWithdrawAddressKey: config.KrakenWithdrawAddressKey,
+		Context:                  ctx,
 	}
 
 	return client
@@ -68,7 +70,7 @@ func (client KrakenClient) Withdraw() (interface{}, error) {
 	if krakenBalanceFloatXBT > krakenWithdrawAmtXBTmin {
 		result, err := client.Client.Query("Withdraw", map[string]string{
 			"asset":  "xbt",
-			"key":    "umbrel",
+			"key":    client.KrakenWithdrawAddressKey,
 			"amount": krakenBalanceStringXBT,
 		})
 		if err != nil {

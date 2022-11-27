@@ -25,17 +25,18 @@ type Config struct {
 	PayTimeoutSeconds      string `form:"PayTimeoutSeconds"`
 	LoopCooldownSeconds    string `form:"LoopCooldownSeconds"`
 
-	KrakenEnabled        string `form:"KrakenEnabled"`
-	KrakenOpMinBtc       string `form:"KrakenOpMinBtc"`
-	KrakenOpMaxBtc       string `form:"KrakenOpMaxBtc"`
-	KrakenWithdrawBtcMin string `form:"KrakenWithdrawBtcMin"`
-	KrakenUsername       string `form:"KrakenUsername"`
-	KrakenPassword       string `form:"KrakenPassword"`
-	KrakenOtpRequired    string `form:"KrakenOtpRequired"`
-	KrakenOtpSecret      string `form:"KrakenOtpSecret"`
-	KrakenApiKey         string `form:"KrakenApiKey"`
-	KrakenApiSecret      string `form:"KrakenApiSecret"`
-	ChromeProfilePath    string `form:"ChromeProfilePath"`
+	KrakenEnabled            string `form:"KrakenEnabled"`
+	KrakenOpMinBtc           string `form:"KrakenOpMinBtc"`
+	KrakenOpMaxBtc           string `form:"KrakenOpMaxBtc"`
+	KrakenWithdrawBtcMin     string `form:"KrakenWithdrawBtcMin"`
+	KrakenUsername           string `form:"KrakenUsername"`
+	KrakenPassword           string `form:"KrakenPassword"`
+	KrakenOtpRequired        string `form:"KrakenOtpRequired"`
+	KrakenOtpSecret          string `form:"KrakenOtpSecret"`
+	KrakenApiKey             string `form:"KrakenApiKey"`
+	KrakenApiSecret          string `form:"KrakenApiSecret"`
+	KrakenWithdrawAddressKey string `form:"KrakenWithdrawAddressKey"`
+	ChromeProfilePath        string `form:"ChromeProfilePath"`
 
 	StrikeEnabled                   string `form:"StrikeEnabled"`
 	StrikeOpMinBtc                  string `form:"StrikeOpMinBtc"`
@@ -108,17 +109,18 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		PayTimeoutSeconds:      os.Getenv("PayTimeoutSeconds"),
 		LoopCooldownSeconds:    os.Getenv("LoopCooldownSeconds"),
 
-		KrakenEnabled:        os.Getenv("KrakenEnabled"),
-		KrakenOpMinBtc:       os.Getenv("KrakenOpMinBtc"),
-		KrakenOpMaxBtc:       os.Getenv("KrakenOpMaxBtc"),
-		KrakenWithdrawBtcMin: os.Getenv("KrakenWithdrawBtcMin"),
-		KrakenUsername:       os.Getenv("KrakenUsername"),
-		KrakenPassword:       os.Getenv("KrakenPassword"),
-		KrakenOtpRequired:    os.Getenv("KrakenOtpRequired"),
-		KrakenOtpSecret:      os.Getenv("KrakenOtpSecret"),
-		KrakenApiKey:         os.Getenv("KrakenApiKey"),
-		KrakenApiSecret:      os.Getenv("KrakenApiSecret"),
-		ChromeProfilePath:    os.Getenv("ChromeProfilePath"),
+		KrakenEnabled:            os.Getenv("KrakenEnabled"),
+		KrakenOpMinBtc:           os.Getenv("KrakenOpMinBtc"),
+		KrakenOpMaxBtc:           os.Getenv("KrakenOpMaxBtc"),
+		KrakenWithdrawBtcMin:     os.Getenv("KrakenWithdrawBtcMin"),
+		KrakenUsername:           os.Getenv("KrakenUsername"),
+		KrakenPassword:           os.Getenv("KrakenPassword"),
+		KrakenOtpRequired:        os.Getenv("KrakenOtpRequired"),
+		KrakenOtpSecret:          os.Getenv("KrakenOtpSecret"),
+		KrakenApiKey:             os.Getenv("KrakenApiKey"),
+		KrakenApiSecret:          os.Getenv("KrakenApiSecret"),
+		KrakenWithdrawAddressKey: os.Getenv("KrakenWithdrawAddressKey"),
+		ChromeProfilePath:        os.Getenv("ChromeProfilePath"),
 
 		StrikeEnabled:                   os.Getenv("StrikeEnabled"),
 		StrikeOpMinBtc:                  os.Getenv("StrikeOpMinBtc"),
