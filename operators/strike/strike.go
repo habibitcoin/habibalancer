@@ -223,6 +223,8 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 					buyBackAmountBTC = buyBackAmountBTC + (amountFloat / rateFloat)
 				} else if transaction.Type == "ExchangeSell" && transaction.State == "COMPLETED" {
 					break
+				} else if transaction.Type == "Order" && transaction.State == "COMPLETED" {
+					break
 				} else {
 					continue
 				}
@@ -267,6 +269,8 @@ func StrikeRepurchaser(ctx context.Context, onchainAddress string) (err error) {
 					rateFloat, _ := strconv.ParseFloat(transaction.Rate.Amount, 64)
 					buyBackAmountBTC = buyBackAmountBTC + (amountFloat / rateFloat)
 				} else if transaction.Type == "Order" && transaction.State == "COMPLETED" {
+					break
+				} else if transaction.Type == "ExchangeSell" && transaction.State == "COMPLETED" {
 					break
 				} else {
 					continue
