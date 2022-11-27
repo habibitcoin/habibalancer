@@ -18,6 +18,8 @@ type Config struct {
 	FeeRateSatsPerVb string `form:"FeeRateSatsPerVb"`
 
 	DeezyPeer              string `form:"DeezyPeer"`
+	DeezyClearnetHost      string `form:"DeezyClearnetHost"`
+	DeezyTorHost           string `form:"DeezyTorHost"`
 	LoopSizeMinSat         string `form:"LoopSizeMinSat"`
 	LocalAmountMinSat      string `form:"LocalAmountMinSat"`
 	MaxLiqFeePpm           string `form:"MaxLiqFeePpm"`
@@ -102,6 +104,8 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		FeeRateSatsPerVb: os.Getenv("FeeRateSatsPerVb"),
 
 		DeezyPeer:              os.Getenv("DeezyPeer"),
+		DeezyClearnetHost:      os.Getenv("DeezyClearnetHost"),
+		DeezyTorHost:           os.Getenv("DeezyTorHost"),
 		LoopSizeMinSat:         os.Getenv("LoopSizeMinSat"),
 		LocalAmountMinSat:      os.Getenv("LocalAmountMinSat"),
 		MaxLiqFeePpm:           os.Getenv("MaxLiqFeePpm"),

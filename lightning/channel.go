@@ -110,5 +110,125 @@ func (client *LightningClient) IsChannelOpen(peer string) (status bool) {
 		return false
 	}
 
-	return len(ChannelExists.Channels) != 0
+	if len(ChannelExists.Channels) != 0 {
+		return true
+	}
+
+	if peer == client.DeezyPeer {
+		// ensure connection
+		if connected := client.isDeezyConnected(); !connected {
+			if ok := client.connectDeezyClearnet(); !ok {
+				if ok = client.connectDeezyTor(); !ok {
+					log.Println("Unable to verify connection to Deezy")
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+type PeersResponse struct {
+	Peers []Peers `json:"peers"`
+}
+
+type Peers struct {
+	Peer string `json:"pub_key"`
+}
+
+func (client *LightningClient) isDeezyConnected() (status bool) {
+	resp, err := client.sendGetRequest("v1/peers")
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	peers := PeersResponse{}
+	if err := json.Unmarshal(bodyBytes, &peers); err != nil {
+		log.Println(err)
+		return false
+	}
+
+	for _, peer := range peers.Peers {
+		if peer.Peer == client.DeezyPeer {
+			return true
+		}
+	}
+
+	return false
+}
+
+type LightningAddress struct {
+	Peer string `json:"pubkey"`
+	Host string `json:"host"`
+}
+
+type ConnectPeerPayload struct {
+	Address LightningAddress `json:"addr"`
+	Perm    bool             `json:"perm"`
+	Timeout string           `json:"timeout"`
+}
+
+func (client *LightningClient) connectDeezyClearnet() (status bool) {
+	payload := &ConnectPeerPayload{
+		Address: LightningAddress{
+			Peer: client.DeezyPeer,
+			Host: client.DeezyClearnetHost,
+		},
+		Perm:    true,
+		Timeout: "60",
+	}
+	resp, err := client.sendPostRequestJSON("v1/peers", payload)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	bodyString := string(bodyBytes)
+	log.Println(bodyString)
+
+	if len(bodyString) > 5 {
+		return false
+	}
+
+	return true
+}
+
+func (client *LightningClient) connectDeezyTor() (status bool) {
+	torPayload := &ConnectPeerPayload{
+		Address: LightningAddress{
+			Peer: client.DeezyPeer,
+			Host: client.DeezyTorHost,
+		},
+		Perm:    true,
+		Timeout: "60",
+	}
+	resp, err := client.sendPostRequestJSON("v1/peers", torPayload)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+
+	bodyString := string(bodyBytes)
+	log.Println(bodyString)
+
+	return true
 }

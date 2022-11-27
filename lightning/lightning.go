@@ -15,14 +15,16 @@ import (
 )
 
 type LightningClient struct {
-	Client           *http.Client
-	Host             string
-	Macaroon         string
-	Context          context.Context
-	ExcludeDeezy     string
-	TimeoutSeconds   string
-	DeezyPeer        string
-	FeeRateSatsPerVb string
+	Client            *http.Client
+	Host              string
+	Macaroon          string
+	Context           context.Context
+	ExcludeDeezy      string
+	TimeoutSeconds    string
+	DeezyPeer         string
+	DeezyClearnetHost string
+	DeezyTorHost      string
+	FeeRateSatsPerVb  string
 }
 
 // func NewLightningClient
@@ -36,13 +38,15 @@ func NewClient(ctx context.Context) (client LightningClient) {
 		Transport: tr,
 	}
 	client = LightningClient{
-		Client:           httpClient,
-		Host:             config.LNDHost,
-		Macaroon:         loadMacaroon(ctx),
-		ExcludeDeezy:     config.ExcludeDeezyFromLiqOps,
-		TimeoutSeconds:   config.PayTimeoutSeconds,
-		FeeRateSatsPerVb: config.FeeRateSatsPerVb,
-		DeezyPeer:        config.DeezyPeer,
+		Client:            httpClient,
+		Host:              config.LNDHost,
+		Macaroon:          loadMacaroon(ctx),
+		ExcludeDeezy:      config.ExcludeDeezyFromLiqOps,
+		DeezyClearnetHost: config.DeezyClearnetHost,
+		DeezyTorHost:      config.DeezyTorHost,
+		TimeoutSeconds:    config.PayTimeoutSeconds,
+		FeeRateSatsPerVb:  config.FeeRateSatsPerVb,
+		DeezyPeer:         config.DeezyPeer,
 	}
 
 	return client
