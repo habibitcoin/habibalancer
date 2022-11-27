@@ -23,6 +23,7 @@ type Config struct {
 	MaxLiqFeePpm           string `form:"MaxLiqFeePpm"`
 	ExcludeDeezyFromLiqOps string `form:"ExcludeDeezyFromLiqOps"`
 	PayTimeoutSeconds      string `form:"PayTimeoutSeconds"`
+	LoopCooldownSeconds    string `form:"LoopCooldownSeconds"`
 
 	KrakenEnabled        string `form:"KrakenEnabled"`
 	KrakenOpMinBtc       string `form:"KrakenOpMinBtc"`
@@ -105,6 +106,7 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		MaxLiqFeePpm:           os.Getenv("MaxLiqFeePpm"),
 		ExcludeDeezyFromLiqOps: os.Getenv("ExcludeDeezyFromLiqOps"),
 		PayTimeoutSeconds:      os.Getenv("PayTimeoutSeconds"),
+		LoopCooldownSeconds:    os.Getenv("LoopCooldownSeconds"),
 
 		KrakenEnabled:        os.Getenv("KrakenEnabled"),
 		KrakenOpMinBtc:       os.Getenv("KrakenOpMinBtc"),

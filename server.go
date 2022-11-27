@@ -75,10 +75,11 @@ func main() {
 
 func looper(ctx context.Context) (err error) {
 	var (
-		config        = configs.GetConfig(ctx)
-		deezyPeer     = config.DeezyPeer
-		strikeEnabled = config.StrikeEnabled
-		krakenEnabled = config.KrakenEnabled
+		config             = configs.GetConfig(ctx)
+		deezyPeer          = config.DeezyPeer
+		cooldownSeconds, _ = strconv.Atoi(config.LoopCooldownSeconds)
+		strikeEnabled      = config.StrikeEnabled
+		krakenEnabled      = config.KrakenEnabled
 
 		minLoopSize, _    = strconv.Atoi(config.LoopSizeMinSat)
 		localAmountMin, _ = strconv.Atoi(config.LocalAmountMinSat)
@@ -106,7 +107,7 @@ func looper(ctx context.Context) (err error) {
 	firstRun := true
 	for {
 		if !firstRun {
-			time.Sleep(15 * time.Second)
+			time.Sleep(time.Duration(cooldownSeconds) * time.Second)
 		}
 		firstRun = false
 		// Step 1: Find if we have a channel opened with Deezy
