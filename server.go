@@ -176,26 +176,28 @@ func looper(ctx context.Context) (err error) {
 
 		// STAY IN LOOP UNTIL BALANCE OF OPERATORS IS > LIQUIDITY OPERATION AMOUNT
 		if krakenEnabled == "true" {
-			// Fetch Kraken LN Deposit Address
-			krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
-			krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
-			krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
-			lnInvoice := krakenClient.GetAddress(krakenAmtXBT)
-			if lnInvoice == "" {
-				continue
-			}
-			log.Println(lnInvoice)
-			// Try to pay invoice
-			for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
-				_, err = lightningClient.SendPayReq(lnInvoice, krakenAmtXBTfee)
-				if err != nil {
-					log.Println(err)
-					if consecutiveErrors == 9 {
-						time.Sleep(900 * time.Second)
-						continue
-					}
+			if krakenAmtXBTmax > 0 {
+				// Fetch Kraken LN Deposit Address
+				krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
+				krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
+				krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
+				lnInvoice := krakenClient.GetAddress(krakenAmtXBT)
+				if lnInvoice == "" {
+					continue
 				}
-				consecutiveErrors = 11
+				log.Println(lnInvoice)
+				// Try to pay invoice
+				for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
+					_, err = lightningClient.SendPayReq(lnInvoice, krakenAmtXBTfee)
+					if err != nil {
+						log.Println(err)
+						if consecutiveErrors == 9 {
+							time.Sleep(900 * time.Second)
+							continue
+						}
+					}
+					consecutiveErrors = 11
+				}
 			}
 
 			// Step 5: Withdraw funds from Kraken if we have enough money to begin a liq operation
