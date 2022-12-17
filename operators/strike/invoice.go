@@ -35,7 +35,7 @@ type InvoiceQuoteResponse struct {
 
 func (client StrikeClient) getInvoice(description string, USDamount string) (invoice InvoiceResponse, err error) {
 	var amount amountType
-	amount.Currency = "USD"
+	amount.Currency = client.DefaultCurrency
 	amount.Amount = USDamount
 	resp, err := client.sendPostRequest(invoicesEndpoint, &InvoicePayload{
 		CorrelationId: uuid.New().String(),

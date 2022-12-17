@@ -58,8 +58,9 @@ func main() {
 		e.POST("/", h.SaveConfig)
 		e.GET("/begin", func(c echo.Context) error {
 			// refresh context and configs
-			h.Context = context.WithValue(h.Context, "configs", h.Config)
-			go looper(h.Context)
+			ctx := context.Background()
+			ctx, _ = configs.LoadConfig(ctx)
+			go looper(ctx)
 			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
 		})
 		e.Static("/static", "static")
@@ -74,10 +75,11 @@ func main() {
 
 func looper(ctx context.Context) (err error) {
 	var (
-		config        = configs.GetConfig(ctx)
-		deezyPeer     = config.DeezyPeer
-		strikeEnabled = config.StrikeEnabled
-		krakenEnabled = config.KrakenEnabled
+		config             = configs.GetConfig(ctx)
+		deezyPeer          = config.DeezyPeer
+		cooldownSeconds, _ = strconv.Atoi(config.LoopCooldownSeconds)
+		strikeEnabled      = config.StrikeEnabled
+		krakenEnabled      = config.KrakenEnabled
 
 		minLoopSize, _    = strconv.Atoi(config.LoopSizeMinSat)
 		localAmountMin, _ = strconv.Atoi(config.LocalAmountMinSat)
@@ -95,12 +97,17 @@ func looper(ctx context.Context) (err error) {
 		strikeClient    = strike.NewClient(ctx)
 	)
 	if strikeEnabled == "true" {
-		go strike.StrikeRepurchaser(ctx)
+		address, err := lightningClient.CreateAddress()
+		if err != nil {
+			log.Println("Error from LND creating new address for Strike withdrawal")
+			return err
+		}
+		go strike.StrikeRepurchaser(ctx, address)
 	}
 	firstRun := true
 	for {
 		if !firstRun {
-			time.Sleep(15 * time.Second)
+			time.Sleep(time.Duration(cooldownSeconds) * time.Second)
 		}
 		firstRun = false
 		// Step 1: Find if we have a channel opened with Deezy
@@ -170,26 +177,28 @@ func looper(ctx context.Context) (err error) {
 
 		// STAY IN LOOP UNTIL BALANCE OF OPERATORS IS > LIQUIDITY OPERATION AMOUNT
 		if krakenEnabled == "true" {
-			// Fetch Kraken LN Deposit Address
-			krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
-			krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
-			krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
-			lnInvoice := krakenClient.GetAddress(krakenAmtXBT)
-			if lnInvoice == "" {
-				continue
-			}
-			log.Println(lnInvoice)
-			// Try to pay invoice
-			for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
-				_, err = lightningClient.SendPayReq(lnInvoice, krakenAmtXBTfee)
-				if err != nil {
-					log.Println(err)
-					if consecutiveErrors == 9 {
-						time.Sleep(900 * time.Second)
-						continue
-					}
+			if krakenAmtXBTmax > 0 {
+				// Fetch Kraken LN Deposit Address
+				krakenAmtXBTi := krakenAmtXBTmin + rand.Float64()*(krakenAmtXBTmax-krakenAmtXBTmin)
+				krakenAmtXBT := fmt.Sprintf("%.5f", krakenAmtXBTi)
+				krakenAmtXBTfee := fmt.Sprintf("%.0f", krakenAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
+				lnInvoice := krakenClient.GetAddress(krakenAmtXBT)
+				if lnInvoice == "" {
+					continue
 				}
-				consecutiveErrors = 11
+				log.Println(lnInvoice)
+				// Try to pay invoice
+				for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
+					_, err = lightningClient.SendPayReq(lnInvoice, krakenAmtXBTfee)
+					if err != nil {
+						log.Println(err)
+						if consecutiveErrors == 9 {
+							time.Sleep(900 * time.Second)
+							continue
+						}
+					}
+					consecutiveErrors = 11
+				}
 			}
 
 			// Step 5: Withdraw funds from Kraken if we have enough money to begin a liq operation
@@ -229,13 +238,15 @@ func looper(ctx context.Context) (err error) {
 				}
 			}
 
-			// Withdraw funds from Strike
-			success, err := strikeClient.Withdraw(lightningClient)
-			if err != nil || success == false {
-				log.Println(err)
-				continue
+			// Withdraw funds from Strike if we have a BTC account. USDT account do not have BTC accounts currently
+			if strikeClient.DefaultCurrency == "USD" {
+				success, err := strikeClient.Withdraw(lightningClient)
+				if err != nil || success == false {
+					log.Println(err)
+					continue
+				}
+				log.Println("Strike withdrawal successful")
 			}
-			log.Println("Strike withdrawal successful")
 		}
 		time.Sleep(15 * time.Second)
 	}

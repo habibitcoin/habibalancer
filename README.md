@@ -23,7 +23,7 @@ Mirror at [https://vimeo.com/770879037](https://vimeo.com/770879037)
 
 
 
-Advanced Setup: If you've never used golang before, you'll want to install Go 1.18, then download this project, open the habibitcoin directory and run `go run server.go`
+Advanced Setup: If you've never used golang before, you'll want to install Go 1.19, then download this project, open the habibitcoin directory and run `go run server.go`
 
 ## What It Looks Like
 Once you get running, you can update/save your configurations, and hit "Start Earning" when you are ready to start.
