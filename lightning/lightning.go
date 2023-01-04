@@ -1,15 +1,14 @@
 package lightning
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/hex"
 	"encoding/json"
-	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
-	"os"
 
 	"github.com/habibitcoin/habibalancer/configs"
 )
@@ -53,32 +52,17 @@ func NewClient(ctx context.Context) (client LightningClient) {
 }
 
 func loadMacaroon(ctx context.Context) (macaroon string) {
-	file, err := os.Open(configs.GetConfig(ctx).MacaroonLocation)
+	macaroonBytes, err := ioutil.ReadFile(configs.GetConfig(ctx).MacaroonLocation)
 	if err != nil {
+		log.Println("couldnt find or open macaroon")
+		log.Println(err)
 		return configs.GetConfig(ctx).Macaroon
 	}
 
-	defer file.Close()
+	macaroon = hex.EncodeToString(macaroonBytes)
 
-	reader := bufio.NewReader(file)
-	scanner := bufio.NewScanner(reader)
-
-	scanner.Split(bufio.ScanRunes)
-
-	var finalResult []string
-	var finalOriginal []string
-
-	for scanner.Scan() {
-		original := fmt.Sprintf("%s ", scanner.Text())
-
-		finalOriginal = append(finalOriginal, original)
-
-		hexstring := fmt.Sprintf("%x ", scanner.Text())
-
-		finalResult = append(finalResult, hexstring)
-	}
-
-	return finalResult[0]
+	log.Println(macaroon)
+	return macaroon
 }
 
 func (client *LightningClient) sendGetRequest(endpoint string) (*http.Response, error) {
