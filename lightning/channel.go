@@ -72,6 +72,41 @@ type ChannelResponse struct {
 	ChannelPoint  string `json:"channel_point"`
 	LocalBalance  string `json:"local_balance"`
 	RemoteBalance string `json:"remote_balance"`
+	Capacity      string `json:"capacity"`
+}
+
+func (client *LightningClient) ListClosedChannels(peer string) (channelIds []string, largestChannelCapacitySats int, err error) {
+	largestChannelCapacitySats = 0
+
+	resp, err := client.sendGetRequest("v1/channels/closed?cooperative=true")
+	if err != nil {
+		log.Println(err)
+		return channelIds, 0, err
+	}
+
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println(err)
+		return channelIds, 0, err
+	}
+
+	channels := ChannelsResponse{}
+	if err := json.Unmarshal(bodyBytes, &channels); err != nil {
+		log.Println(err)
+		return channelIds, 0, err
+	}
+
+	for _, closedChan := range channels.Channels {
+		if closedChan.Peer == peer {
+			channelIds = append(channelIds, closedChan.ChannelId)
+			chanCap, _ := strconv.Atoi(closedChan.Capacity)
+			if chanCap > largestChannelCapacitySats {
+				largestChannelCapacitySats = chanCap
+			}
+		}
+	}
+
+	return channelIds, largestChannelCapacitySats, err
 }
 
 func (client *LightningClient) ListChannels(peer string) (channels ChannelsResponse, err error) {
@@ -104,6 +139,7 @@ func (client *LightningClient) ListChannels(peer string) (channels ChannelsRespo
 }
 
 func (client *LightningClient) IsChannelOpen(peer string) (status bool) {
+	client.ListClosedChannels(peer)
 	ChannelExists, err := client.ListChannels(peer)
 	if err != nil {
 		log.Printf("Error listing channels in IsChannelOpen: %v", err)

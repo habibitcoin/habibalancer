@@ -30,7 +30,21 @@ type InvoiceRequest struct {
 type InvoiceResponse struct {
 	RHash          byte   `json:"r_hash"`
 	PaymentRequest string `json:"payment_request"`
+	SettleDate     string `json:"settle_date"`
 	AddIndex       string `json:"add_index"`
+	State          string `json:"state"`
+	AmtSats        string `json:"amt_paid_sat"`
+	AmtMsats       string `json:"amt_paid_msat"`
+	CltvExpiry     string `json:"cltvy_expiry"`
+	Htlcs          []Htlc `json:"htlcs"`
+	IsKeysend      bool   `json:"is_keysend"`
+	PaymentAddr    string `json:"payment_addr"`
+}
+
+type Htlc struct {
+	ChanId  string `json:"chan_id"`
+	State   string `json:"state"`
+	AmtMsat string `json:"amt_msat"`
 }
 
 type InvoiceListResponse struct {
@@ -50,6 +64,19 @@ func (client *LightningClient) CreateInvoice(amount string) (string, error) {
 	bodyString := string(bodyBytes)
 
 	return bodyString, err
+}
+
+func (client *LightningClient) GetInvoices() (invoices InvoiceListResponse, err error) {
+	// First see if invoice exists
+	resp, err := client.sendGetRequest("v1/invoices")
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return invoices, err
+	}
+	validInvoices := InvoiceListResponse{}
+	json.Unmarshal(bodyBytes, &validInvoices)
+
+	return validInvoices, nil
 }
 
 func (client *LightningClient) GetInvoicePaid(invoice InvoiceResponse) (bool, error) {

@@ -102,6 +102,7 @@ func looper(ctx context.Context) (err error) {
 		strikeClient    = strike.NewClient(ctx)
 		nicehashClient  = nicehash.NewClient(ctx)
 	)
+	deezy.CalculateEarnings(lightningClient)
 	if strikeEnabled == "true" {
 		address, err := lightningClient.CreateAddress()
 		if err != nil {
