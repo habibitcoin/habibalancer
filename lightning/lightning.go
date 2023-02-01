@@ -83,7 +83,6 @@ func (client *LightningClient) sendGetRequest(endpoint string) (*http.Response, 
 
 func (client *LightningClient) sendPostRequestJSON(endpoint string, payload interface{}) (*http.Response, error) {
 	jsonStr, err := json.Marshal(payload)
-
 	req, err := http.NewRequest("POST", client.Host+endpoint, bytes.NewBuffer(jsonStr))
 	if err != nil {
 		return nil, err

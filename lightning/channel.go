@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 )
 
 type FeeEstimateResponse struct {
@@ -75,30 +76,32 @@ type ChannelResponse struct {
 	Capacity      string `json:"capacity"`
 }
 
-func (client *LightningClient) ListClosedChannels(peer string) (channelIds []string, largestChannelCapacitySats int, err error) {
+func (client *LightningClient) ListClosedChannels(peer string) (channelIds []string, openingTxs []string, largestChannelCapacitySats int, err error) {
 	largestChannelCapacitySats = 0
 
 	resp, err := client.sendGetRequest("v1/channels/closed?cooperative=true")
 	if err != nil {
 		log.Println(err)
-		return channelIds, 0, err
+		return channelIds, openingTxs, 0, err
 	}
 
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		log.Println(err)
-		return channelIds, 0, err
+		return channelIds, openingTxs, 0, err
 	}
 
 	channels := ChannelsResponse{}
 	if err := json.Unmarshal(bodyBytes, &channels); err != nil {
 		log.Println(err)
-		return channelIds, 0, err
+		return channelIds, openingTxs, 0, err
 	}
 
 	for _, closedChan := range channels.Channels {
 		if closedChan.Peer == peer {
 			channelIds = append(channelIds, closedChan.ChannelId)
+			txChunk := strings.Split(closedChan.ChannelPoint, ":")
+			openingTxs = append(openingTxs, txChunk[0])
 			chanCap, _ := strconv.Atoi(closedChan.Capacity)
 			if chanCap > largestChannelCapacitySats {
 				largestChannelCapacitySats = chanCap
@@ -106,7 +109,7 @@ func (client *LightningClient) ListClosedChannels(peer string) (channelIds []str
 		}
 	}
 
-	return channelIds, largestChannelCapacitySats, err
+	return channelIds, openingTxs, largestChannelCapacitySats, err
 }
 
 func (client *LightningClient) ListChannels(peer string) (channels ChannelsResponse, err error) {

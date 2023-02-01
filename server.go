@@ -62,7 +62,14 @@ func main() {
 			ctx := context.Background()
 			ctx, _ = configs.LoadConfig(ctx)
 			go looper(ctx)
-			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
+			return c.String(http.StatusOK, "Looping started! Monitor command line for errors. Visit /stats to view earning stats.\n")
+		})
+		e.GET("/stats", func(c echo.Context) error {
+			// refresh context and configs
+			ctx := context.Background()
+			ctx, _ = configs.LoadConfig(ctx)
+			earningsInfo, _ := deezy.CalculateEarnings(lightning.NewClient(ctx))
+			return c.String(http.StatusOK, string(earningsInfo))
 		})
 		e.Static("/static", "static")
 		e.File("/favicon.ico", "static/images/favicon.ico")
@@ -102,7 +109,7 @@ func looper(ctx context.Context) (err error) {
 		strikeClient    = strike.NewClient(ctx)
 		nicehashClient  = nicehash.NewClient(ctx)
 	)
-	deezy.CalculateEarnings(lightningClient)
+	// lightningClient.ListPayments(ctx)
 	if strikeEnabled == "true" {
 		address, err := lightningClient.CreateAddress()
 		if err != nil {

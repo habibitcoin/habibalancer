@@ -3,6 +3,7 @@ package strike
 import (
 	"encoding/json"
 	"io/ioutil"
+	"log"
 	"strings"
 
 	"github.com/google/uuid"
@@ -60,6 +61,7 @@ func (client StrikeClient) getInvoiceQuote(quoteId string) (invoice InvoiceQuote
 	if err != nil {
 		return invoice, err
 	}
+	log.Println(string(bodyBytes))
 	json.Unmarshal(bodyBytes, &invoice)
 
 	return invoice, err
