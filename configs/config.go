@@ -50,6 +50,15 @@ type Config struct {
 	StrikeApiKey                    string `form:"StrikeApiKey"`
 	StrikeJwtToken                  string `form:"StrikeJwtToken"`
 	StrikeDefaultCurrency           string `form:"StrikeDefaultCurrency"`
+
+	NicehashEnabled            string `form:"NicehashEnabled"`
+	NicehashOpMinBtc           string `form:"NicehashOpMinBtc"`
+	NicehashOpMaxBtc           string `form:"NicehashOpMaxBtc"`
+	NicehashWithdrawBtcMin     string `form:"NicehashWithdrawBtcMin"`
+	NicehashApiKey             string `form:"NicehashApiKey"`
+	NicehashApiSecret          string `form:"NicehashApiSecret"`
+	NicehashWithdrawAddressKey string `form:"NicehashWithdrawAddressKey"`
+	NicehashOrganizationId     string `form:"NicehashOrganizationId"`
 }
 
 func (configs Config) GetConfigMap() (configMap map[string]string) {
@@ -136,6 +145,15 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 		StrikeApiKey:                    os.Getenv("StrikeApiKey"),
 		StrikeJwtToken:                  os.Getenv("StrikeJwtToken"),
 		StrikeDefaultCurrency:           os.Getenv("StrikeDefaultCurrency"),
+
+		NicehashEnabled:            os.Getenv("NicehashEnabled"),
+		NicehashOpMinBtc:           os.Getenv("NicehashOpMinBtc"),
+		NicehashOpMaxBtc:           os.Getenv("NicehashOpMaxBtc"),
+		NicehashWithdrawBtcMin:     os.Getenv("NicehashWithdrawBtcMin"),
+		NicehashApiKey:             os.Getenv("NicehashApiKey"),
+		NicehashApiSecret:          os.Getenv("NicehashApiSecret"),
+		NicehashWithdrawAddressKey: os.Getenv("NicehashWithdrawAddressKey"),
+		NicehashOrganizationId:     os.Getenv("NicehashOrganizationId"),
 	}
 
 	ctx = context.WithValue(ctx, "configs", configs)

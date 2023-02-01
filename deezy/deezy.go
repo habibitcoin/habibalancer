@@ -28,6 +28,16 @@ func CloseChannel(chanPoint string, lightningClient lightning.LightningClient) (
 	return bodyString, err
 }
 
+func contains(s []string, str string) bool {
+	for _, v := range s {
+		if v == str {
+			return true
+		}
+	}
+
+	return false
+}
+
 func sendPostRequest(endpoint string, payload string) (*http.Response, error) {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},

@@ -17,6 +17,7 @@ import (
 	"github.com/habibitcoin/habibalancer/handler"
 	"github.com/habibitcoin/habibalancer/lightning"
 	"github.com/habibitcoin/habibalancer/operators/kraken"
+	"github.com/habibitcoin/habibalancer/operators/nicehash"
 	"github.com/habibitcoin/habibalancer/operators/strike"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -61,7 +62,14 @@ func main() {
 			ctx := context.Background()
 			ctx, _ = configs.LoadConfig(ctx)
 			go looper(ctx)
-			return c.String(http.StatusOK, "Looping started! Monitor command line for errors.\n")
+			return c.String(http.StatusOK, "Looping started! Monitor command line for errors. Visit /stats to view earning stats.\n")
+		})
+		e.GET("/stats", func(c echo.Context) error {
+			// refresh context and configs
+			ctx := context.Background()
+			ctx, _ = configs.LoadConfig(ctx)
+			earningsInfo, _ := deezy.CalculateEarnings(lightning.NewClient(ctx))
+			return c.String(http.StatusOK, string(earningsInfo))
 		})
 		e.Static("/static", "static")
 		e.File("/favicon.ico", "static/images/favicon.ico")
@@ -80,6 +88,7 @@ func looper(ctx context.Context) (err error) {
 		cooldownSeconds, _ = strconv.Atoi(config.LoopCooldownSeconds)
 		strikeEnabled      = config.StrikeEnabled
 		krakenEnabled      = config.KrakenEnabled
+		nicehashEnabled    = config.NicehashEnabled
 
 		minLoopSize, _    = strconv.Atoi(config.LoopSizeMinSat)
 		localAmountMin, _ = strconv.Atoi(config.LocalAmountMinSat)
@@ -90,12 +99,17 @@ func looper(ctx context.Context) (err error) {
 		strikeAmtXBTmin, _ = strconv.ParseFloat(config.StrikeOpMinBtc, 64)
 		strikeAmtXBTmax, _ = strconv.ParseFloat(config.StrikeOpMaxBtc, 64)
 
+		nicehashAmtXBTmin, _ = strconv.ParseFloat(config.NicehashOpMinBtc, 64)
+		nicehashAmtXBTmax, _ = strconv.ParseFloat(config.NicehashOpMaxBtc, 64)
+
 		maxLiqFeePpm, _ = strconv.ParseFloat(config.MaxLiqFeePpm, 64)
 
 		lightningClient = lightning.NewClient(ctx)
 		krakenClient    = kraken.NewClient(ctx)
 		strikeClient    = strike.NewClient(ctx)
+		nicehashClient  = nicehash.NewClient(ctx)
 	)
+	// lightningClient.ListPayments(ctx)
 	if strikeEnabled == "true" {
 		address, err := lightningClient.CreateAddress()
 		if err != nil {
@@ -210,6 +224,42 @@ func looper(ctx context.Context) (err error) {
 				log.Println(err)
 			} else {
 				fmt.Printf("Kraken withdrawal successful: %+v\n", result)
+			}
+		}
+
+		if nicehashEnabled == "true" {
+			if nicehashAmtXBTmax > 0 {
+				// Fetch Nicehash LN Deposit Address
+				nicehashAmtXBTi := nicehashAmtXBTmin + rand.Float64()*(nicehashAmtXBTmax-nicehashAmtXBTmin)
+				nicehashAmtXBT := fmt.Sprintf("%.5f", nicehashAmtXBTi)
+				nicehashAmtXBTfee := fmt.Sprintf("%.0f", nicehashAmtXBTi*maxLiqFeePpm*100) // fee is in satoshis, we want at least 50% profit
+				lnInvoice, err := nicehashClient.GetAddress(nicehashAmtXBT)
+				if lnInvoice == "" || err != nil {
+					continue
+				}
+				log.Println(lnInvoice)
+				// Try to pay invoice
+				for consecutiveErrors := 0; consecutiveErrors <= 10; consecutiveErrors++ {
+					_, err = lightningClient.SendPayReq(lnInvoice, nicehashAmtXBTfee)
+					if err != nil {
+						log.Println(err)
+						if consecutiveErrors == 9 {
+							time.Sleep(900 * time.Second)
+							continue
+						}
+					}
+					consecutiveErrors = 11
+				}
+			}
+			// Step 5: Withdraw funds from Nicehash if we have enough money to begin a liq operation
+			// Get our Nicehash balance in XBT
+
+			// Try to withdraw all Nicehash BTC because operator balance > liq amount
+			result, err := nicehashClient.Withdraw()
+			if err != nil {
+				log.Println(err)
+			} else {
+				fmt.Printf("Nicehash withdrawal successful: %+v\n", result)
 			}
 		}
 
